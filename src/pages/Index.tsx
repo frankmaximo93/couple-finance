@@ -1,12 +1,47 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+
+import { useState } from 'react';
+import Header from '@/components/Header';
+import Navigation from '@/components/Navigation';
+import Dashboard from '@/components/Dashboard';
+import TransactionForm from '@/components/TransactionForm';
+import TransactionsList from '@/components/TransactionsList';
+import CategoriesList from '@/components/CategoriesList';
+import Reports from '@/components/Reports';
+import MonthlyBills from '@/components/MonthlyBills';
+import Footer from '@/components/Footer';
+
+const tabTitles: Record<string, string> = {
+  'dashboard-section': 'Visão Geral',
+  'transaction-form-section': 'Registrar Transação',
+  'transactions-list-section': 'Lista de Transações',
+  'categories-list-section': 'Categorias',
+  'reports-section': 'Relatórios',
+  'monthly-bills-section': 'Contas do Mês'
+};
 
 const Index = () => {
+  const [activeTab, setActiveTab] = useState('dashboard-section');
+
+  const handleTabChange = (tabId: string) => {
+    setActiveTab(tabId);
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-gray-600">Start building your amazing project here!</p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-b from-sky-50 to-white">
+      <Header activeTab={tabTitles[activeTab]} />
+      
+      <Navigation activeTab={activeTab} setActiveTab={handleTabChange} />
+      
+      <main className="container mx-auto px-4 py-8">
+        <Dashboard isActive={activeTab === 'dashboard-section'} />
+        <TransactionForm isActive={activeTab === 'transaction-form-section'} />
+        <TransactionsList isActive={activeTab === 'transactions-list-section'} />
+        <CategoriesList isActive={activeTab === 'categories-list-section'} />
+        <Reports isActive={activeTab === 'reports-section'} />
+        <MonthlyBills isActive={activeTab === 'monthly-bills-section'} />
+      </main>
+      
+      <Footer />
     </div>
   );
 };
