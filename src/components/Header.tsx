@@ -1,25 +1,42 @@
 
-import { Fragment } from 'react';
+import { useState, useEffect } from 'react';
+import ProfileMenu from './ProfileMenu';
 
 type HeaderProps = {
   activeTab: string;
 };
 
 const Header = ({ activeTab }: HeaderProps) => {
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 10);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   return (
-    <div className="w-full py-6 px-4 bg-gradient-to-r from-blue-600 to-blue-500 rounded-b-3xl shadow-lg">
-      <div className="container mx-auto">
-        <div className="flex flex-col items-center justify-center animate-fade-in">
-          <h1 className="text-3xl font-bold tracking-tight text-white mb-1">
-            Finanças Casal
-          </h1>
-          <div className="h-0.5 w-16 bg-white/30 rounded-full mb-3"></div>
-          <h2 className="text-xl font-medium text-white/90 animate-float">
-            {activeTab}
-          </h2>
+    <header
+      className={`sticky top-0 z-20 w-full transition-all duration-300 ${
+        isScrolled
+          ? 'bg-white/80 backdrop-blur-md shadow-sm py-2'
+          : 'bg-white py-4'
+      }`}
+    >
+      <div className="container mx-auto px-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-primary md:text-2xl">Finanças Pessoais</h1>
+            <p className="text-sm text-gray-500">{activeTab}</p>
+          </div>
+          
+          <ProfileMenu />
         </div>
       </div>
-    </div>
+    </header>
   );
 };
 
