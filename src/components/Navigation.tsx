@@ -14,6 +14,7 @@ const Navigation = ({ activeTab, setActiveTab }: TabProps) => {
     { id: 'transaction-form-section', label: 'Registrar Transação' },
     { id: 'transactions-list-section', label: 'Lista de Transações' },
     { id: 'categories-list-section', label: 'Categorias' },
+    { id: 'wallets-section', label: 'Carteiras' },
     { id: 'reports-section', label: 'Relatórios' },
     { id: 'monthly-bills-section', label: 'Contas do Mês' },
   ];

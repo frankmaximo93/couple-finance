@@ -1,4 +1,3 @@
-
 import { useEffect, useState, useRef } from 'react';
 import Chart from 'chart.js/auto';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

@@ -6,6 +6,7 @@ import Dashboard from '@/components/Dashboard';
 import TransactionForm from '@/components/TransactionForm';
 import TransactionsList from '@/components/TransactionsList';
 import CategoriesList from '@/components/CategoriesList';
+import Wallets from '@/components/Wallets';
 import Reports from '@/components/Reports';
 import MonthlyBills from '@/components/MonthlyBills';
 import Footer from '@/components/Footer';
@@ -15,6 +16,7 @@ const tabTitles: Record<string, string> = {
   'transaction-form-section': 'Registrar Transação',
   'transactions-list-section': 'Lista de Transações',
   'categories-list-section': 'Categorias',
+  'wallets-section': 'Carteiras',
   'reports-section': 'Relatórios',
   'monthly-bills-section': 'Contas do Mês'
 };
@@ -37,6 +39,7 @@ const Index = () => {
         <TransactionForm isActive={activeTab === 'transaction-form-section'} />
         <TransactionsList isActive={activeTab === 'transactions-list-section'} />
         <CategoriesList isActive={activeTab === 'categories-list-section'} />
+        <Wallets isActive={activeTab === 'wallets-section'} />
         <Reports isActive={activeTab === 'reports-section'} />
         <MonthlyBills isActive={activeTab === 'monthly-bills-section'} />
       </main>
