@@ -1,19 +1,27 @@
 
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Progress } from "@/components/ui/progress";
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { CalendarIcon, Wallet, ArrowUpRight, ArrowDownRight } from "lucide-react";
-import { format } from "date-fns";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { toast } from "sonner";
+import { useEffect, useState } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { Progress } from './ui/progress';
 
 type WalletsProps = {
   isActive: boolean;
+};
+
+type BillStatus = 'pending' | 'paid' | 'overdue';
+
+type Bill = {
+  description: string;
+  amount: number;
+  dueDate: string;
+  status: BillStatus;
+};
+
+type CategoryData = {
+  name: string;
+  value: number;
+  fill: string;
 };
 
 type WalletData = {
@@ -21,309 +29,310 @@ type WalletData = {
   balance: number;
   income: number;
   expenses: number;
-  bills: Array<{
-    description: string;
-    amount: number;
-    dueDate: string;
-    status: 'pending' | 'paid' | 'overdue';
-  }>;
-  categories: Array<{
-    name: string;
-    value: number;
-    fill: string;
-  }>;
+  bills: Bill[];
+  categories: CategoryData[];
+};
+
+type DebtInfo = {
+  amount: number;
+  owedTo: 'franklin' | 'michele';
+  description: string;
 };
 
 const Wallets = ({ isActive }: WalletsProps) => {
-  const [date, setDate] = useState<Date | undefined>(new Date());
-  const [walletsData, setWalletsData] = useState<Record<string, WalletData> | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('franklin');
+  const [wallets, setWallets] = useState<Record<string, WalletData>>({});
+  const [debts, setDebts] = useState<DebtInfo[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (isActive) {
-      fetchWalletsData();
+      fetchWalletData();
     }
-  }, [isActive, date]);
+  }, [isActive]);
 
-  const fetchWalletsData = async () => {
+  const fetchWalletData = async () => {
     setIsLoading(true);
+    
     try {
-      // Simulando dados para demonstração
-      // No ambiente real, você faria uma chamada para a API
-      setTimeout(() => {
-        const data = {
-          franklin: {
-            owner: 'Franklin',
-            balance: 2500.75,
-            income: 4200.00,
-            expenses: 1700.25,
-            bills: [
-              { description: 'Internet', amount: 120.00, dueDate: '2024-10-15', status: 'pending' },
-              { description: 'Streaming', amount: 45.90, dueDate: '2024-10-05', status: 'paid' },
-              { description: 'Celular', amount: 89.90, dueDate: '2024-10-20', status: 'pending' },
-            ],
-            categories: [
-              { name: 'Alimentação', value: 450, fill: '#FF8042' },
-              { name: 'Transporte', value: 350, fill: '#FFBB28' },
-              { name: 'Lazer', value: 270, fill: '#0088FE' },
-              { name: 'Tecnologia', value: 630, fill: '#00C49F' },
-            ]
-          },
-          michele: {
-            owner: 'Michele',
-            balance: 3200.40,
-            income: 4500.00,
-            expenses: 1300.60,
-            bills: [
-              { description: 'Academia', amount: 110.00, dueDate: '2024-10-12', status: 'pending' },
-              { description: 'Compras Online', amount: 325.50, dueDate: '2024-10-03', status: 'paid' },
-              { description: 'Curso Online', amount: 197.00, dueDate: '2024-09-28', status: 'overdue' },
-            ],
-            categories: [
-              { name: 'Compras', value: 580, fill: '#FF8042' },
-              { name: 'Educação', value: 420, fill: '#FFBB28' },
-              { name: 'Saúde', value: 150, fill: '#0088FE' },
-              { name: 'Lazer', value: 150, fill: '#00C49F' },
-            ]
-          }
-        };
-        setWalletsData(data);
-        setIsLoading(false);
-      }, 800);
+      // Simulando dados de carteiras e transações
+      // Normalmente, isso viria da API
+      
+      const mockWallets: Record<string, WalletData> = {
+        franklin: {
+          owner: 'Franklin',
+          balance: 3750.45,
+          income: 5000.00,
+          expenses: 1249.55,
+          bills: [
+            { description: 'Aluguel', amount: 800.00, dueDate: '2025-03-15', status: 'pending' },
+            { description: 'Internet', amount: 120.00, dueDate: '2025-03-10', status: 'paid' },
+            { description: 'Celular', amount: 89.90, dueDate: '2025-03-05', status: 'pending' }
+          ],
+          categories: [
+            { name: 'Alimentação', value: 450, fill: '#FF8042' },
+            { name: 'Transporte', value: 300, fill: '#00C49F' },
+            { name: 'Lazer', value: 200, fill: '#FFBB28' },
+            { name: 'Outros', value: 299.55, fill: '#0088FE' }
+          ]
+        },
+        michele: {
+          owner: 'Michele',
+          balance: 4230.75,
+          income: 5500.00,
+          expenses: 1269.25,
+          bills: [
+            { description: 'Academia', amount: 120.00, dueDate: '2025-03-15', status: 'pending' },
+            { description: 'Streaming', amount: 55.90, dueDate: '2025-03-20', status: 'pending' },
+            { description: 'Seguro', amount: 180.00, dueDate: '2025-03-05', status: 'paid' }
+          ],
+          categories: [
+            { name: 'Alimentação', value: 380, fill: '#FF8042' },
+            { name: 'Beleza', value: 420, fill: '#FFBB28' },
+            { name: 'Transporte', value: 250, fill: '#00C49F' },
+            { name: 'Outros', value: 219.25, fill: '#0088FE' }
+          ]
+        }
+      };
+
+      // Simulando dados de dívidas entre o casal
+      const mockDebts: DebtInfo[] = [
+        { amount: 278.50, owedTo: 'michele', description: 'Compras no supermercado (12/02)' },
+        { amount: 156.00, owedTo: 'michele', description: 'Farmácia (18/02)' },
+        { amount: 95.00, owedTo: 'franklin', description: 'Contas da casa (01/03)' }
+      ];
+
+      setWallets(mockWallets);
+      setDebts(mockDebts);
     } catch (error) {
-      console.error('Erro ao buscar dados das carteiras:', error);
-      toast.error('Erro ao carregar dados das carteiras');
+      console.error('Erro ao carregar dados das carteiras:', error);
+    } finally {
       setIsLoading(false);
     }
   };
 
-  const getStatusColor = (status: 'pending' | 'paid' | 'overdue') => {
-    switch (status) {
-      case 'paid': return 'bg-green-500';
-      case 'pending': return 'bg-yellow-500';
-      case 'overdue': return 'bg-red-500';
-      default: return 'bg-gray-500';
-    }
+  const getTotalOwedByPerson = (person: 'franklin' | 'michele') => {
+    return debts
+      .filter(debt => debt.owedTo !== person)
+      .reduce((total, debt) => total + debt.amount, 0);
   };
 
-  const getStatusText = (status: 'pending' | 'paid' | 'overdue') => {
-    switch (status) {
-      case 'paid': return 'Pago';
-      case 'pending': return 'Pendente';
-      case 'overdue': return 'Atrasado';
-      default: return 'Desconhecido';
-    }
+  const getTotalOwedToPerson = (person: 'franklin' | 'michele') => {
+    return debts
+      .filter(debt => debt.owedTo === person)
+      .reduce((total, debt) => total + debt.amount, 0);
+  };
+
+  const getNetDebtAmount = (person: 'franklin' | 'michele') => {
+    const totalOwed = getTotalOwedByPerson(person);
+    const totalDue = getTotalOwedToPerson(person);
+    return totalDue - totalOwed;
+  };
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value);
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('pt-BR');
   };
 
   if (!isActive) return null;
 
+  if (isLoading) {
+    return (
+      <div className="animate-fade-in">
+        <div className="glass-card rounded-2xl p-8 shadow-md">
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-pulse-shadow h-12 w-12 rounded-full bg-blue-500"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="animate-fade-in">
-      <div className="glass-card rounded-2xl p-6 shadow-md">
-        <div className="flex flex-col space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-2xl font-medium text-gray-800">Carteiras Individuais</h3>
-            <div className="flex items-center gap-2">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant={"outline"}
-                    className={cn(
-                      "w-[240px] justify-start text-left font-normal",
-                      !date && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {date ? format(date, "PPP") : <span>Selecione a data</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={date}
-                    onSelect={setDate}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-              <Button 
-                onClick={fetchWalletsData}
-                variant="default"
-                disabled={isLoading}
-              >
-                {isLoading ? 'Carregando...' : 'Atualizar'}
-              </Button>
-            </div>
-          </div>
-
-          {isLoading ? (
-            <div className="flex justify-center items-center h-64">
-              <div className="animate-pulse-shadow h-12 w-12 rounded-full bg-blue-500"></div>
-            </div>
-          ) : walletsData ? (
-            <Tabs defaultValue="franklin" className="w-full">
-              <TabsList className="mb-4 flex justify-center">
-                <TabsTrigger value="franklin">Carteira de Franklin</TabsTrigger>
-                <TabsTrigger value="michele">Carteira de Michele</TabsTrigger>
-              </TabsList>
-              
-              {Object.entries(walletsData).map(([key, wallet]) => (
-                <TabsContent key={key} value={key} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Card className="bg-gradient-to-br from-blue-50 to-blue-100 hover:shadow-md transition-shadow">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-blue-800">Saldo de {wallet.owner}</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="flex items-center justify-between">
-                          <p className="text-3xl font-bold text-blue-600">
-                            R$ {wallet.balance.toFixed(2)}
-                          </p>
-                          <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
-                            <Wallet className="h-6 w-6 text-blue-600" />
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                    
-                    <Card className="bg-gradient-to-br from-green-50 to-green-100 hover:shadow-md transition-shadow">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-green-800">Receitas</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="flex items-center justify-between">
-                          <p className="text-3xl font-bold text-green-600">
-                            R$ {wallet.income.toFixed(2)}
-                          </p>
-                          <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
-                            <ArrowUpRight className="h-6 w-6 text-green-600" />
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                    
-                    <Card className="bg-gradient-to-br from-red-50 to-red-100 hover:shadow-md transition-shadow">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-red-800">Despesas</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="flex items-center justify-between">
-                          <p className="text-3xl font-bold text-red-600">
-                            R$ {wallet.expenses.toFixed(2)}
-                          </p>
-                          <div className="h-12 w-12 rounded-full bg-red-100 flex items-center justify-center">
-                            <ArrowDownRight className="h-6 w-6 text-red-600" />
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Contas a Pagar</CardTitle>
-                        <CardDescription>Próximos vencimentos de {wallet.owner}</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
-                          {wallet.bills.length > 0 ? (
-                            wallet.bills.map((bill, index) => (
-                              <div key={index} className="flex justify-between items-center p-3 border rounded-md">
-                                <div>
-                                  <h4 className="font-medium">{bill.description}</h4>
-                                  <p className="text-sm text-gray-500">Vencimento: {new Date(bill.dueDate).toLocaleDateString('pt-BR')}</p>
-                                </div>
-                                <div className="text-right">
-                                  <p className="font-bold">R$ {bill.amount.toFixed(2)}</p>
-                                  <span className={`text-xs px-2 py-1 rounded-full text-white ${getStatusColor(bill.status)}`}>
-                                    {getStatusText(bill.status)}
-                                  </span>
-                                </div>
-                              </div>
-                            ))
-                          ) : (
-                            <p className="text-center text-gray-500 py-4">Nenhuma conta a pagar.</p>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                    
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Gastos por Categoria</CardTitle>
-                        <CardDescription>Distribuição de despesas de {wallet.owner}</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="h-[250px]">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                              <Pie
-                                data={wallet.categories}
-                                cx="50%"
-                                cy="50%"
-                                labelLine={false}
-                                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                                outerRadius={80}
-                                fill="#8884d8"
-                                dataKey="value"
-                              >
-                                {wallet.categories.map((entry, index) => (
-                                  <Cell key={`cell-${index}`} fill={entry.fill} />
-                                ))}
-                              </Pie>
-                              <Tooltip formatter={(value) => `R$ ${value}`} />
-                            </PieChart>
-                          </ResponsiveContainer>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-
+      <div className="glass-card rounded-2xl p-8 shadow-md">
+        <Tabs defaultValue="franklin" value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-2 mb-8">
+            <TabsTrigger value="franklin">Carteira do Franklim</TabsTrigger>
+            <TabsTrigger value="michele">Carteira da Michele</TabsTrigger>
+          </TabsList>
+          
+          {['franklin', 'michele'].map((walletKey) => {
+            const wallet = wallets[walletKey];
+            
+            if (!wallet) return null;
+            
+            return (
+              <TabsContent key={walletKey} value={walletKey} className="space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <Card>
-                    <CardHeader>
-                      <CardTitle>Visão Geral da Carteira</CardTitle>
-                      <CardDescription>Análise de gastos e ganhos</CardDescription>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-lg">Saldo atual</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="h-[250px]">
+                      <p className="text-3xl font-bold text-finance-income">{formatCurrency(wallet.balance)}</p>
+                      <div className="flex justify-between mt-4 text-sm">
+                        <div>
+                          <p className="text-gray-500">Receitas</p>
+                          <p className="text-finance-income font-medium">{formatCurrency(wallet.income)}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Despesas</p>
+                          <p className="text-finance-expense font-medium">{formatCurrency(wallet.expenses)}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-lg">Orçamento utilizado</CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex flex-col justify-between">
+                      <div className="mb-6">
+                        <div className="flex justify-between mb-1">
+                          <span className="text-sm text-gray-500">Gastos vs. Receitas</span>
+                          <span className="text-sm font-medium">{Math.round((wallet.expenses / wallet.income) * 100)}%</span>
+                        </div>
+                        <Progress value={(wallet.expenses / wallet.income) * 100} className="h-2 bg-gray-200" indicatorClassName="bg-blue-500" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500 mb-1">Consumo total</p>
+                        <p className="text-xl font-medium text-finance-expense">{formatCurrency(wallet.expenses)}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-lg">Divisão de despesas</CardTitle>
+                      <CardDescription>Dívidas com o cônjuge</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {getNetDebtAmount(walletKey as 'franklin' | 'michele') > 0 ? (
+                        <p className="text-lg font-medium text-finance-income">
+                          A receber: {formatCurrency(getNetDebtAmount(walletKey as 'franklin' | 'michele'))}
+                        </p>
+                      ) : getNetDebtAmount(walletKey as 'franklin' | 'michele') < 0 ? (
+                        <p className="text-lg font-medium text-finance-expense">
+                          A pagar: {formatCurrency(Math.abs(getNetDebtAmount(walletKey as 'franklin' | 'michele')))}
+                        </p>
+                      ) : (
+                        <p className="text-lg font-medium">Sem dívidas pendentes</p>
+                      )}
+                      
+                      <div className="mt-2 text-sm">
+                        <p className="text-gray-500">Detalhes:</p>
+                        <ul className="mt-1 space-y-1">
+                          {debts.map((debt, index) => {
+                            if (debt.owedTo === walletKey) {
+                              return (
+                                <li key={index} className="text-finance-income">
+                                  <span>Receber de {debt.owedTo === 'franklin' ? 'Michele' : 'Franklim'}: </span>
+                                  <span className="font-medium">{formatCurrency(debt.amount)}</span>
+                                  <span className="block text-xs text-gray-500">{debt.description}</span>
+                                </li>
+                              );
+                            } else if (debt.owedTo !== walletKey) {
+                              return (
+                                <li key={index} className="text-finance-expense">
+                                  <span>Pagar para {debt.owedTo === 'michele' ? 'Michele' : 'Franklim'}: </span>
+                                  <span className="font-medium">{formatCurrency(debt.amount)}</span>
+                                  <span className="block text-xs text-gray-500">{debt.description}</span>
+                                </li>
+                              );
+                            }
+                            return null;
+                          })}
+                        </ul>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Despesas por categoria</CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex justify-center">
+                      <div className="h-[300px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
-                          <BarChart
-                            data={wallet.categories}
-                            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                          >
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="name" />
-                            <YAxis />
-                            <Tooltip formatter={(value) => `R$ ${value}`} />
-                            <Legend />
-                            <Bar 
-                              dataKey="value" 
-                              name="Gastos" 
+                          <PieChart>
+                            <Pie
+                              data={wallet.categories}
+                              cx="50%"
+                              cy="50%"
+                              labelLine={false}
+                              outerRadius={80}
                               fill="#8884d8"
-                              radius={[4, 4, 0, 0]}
+                              dataKey="value"
+                              nameKey="name"
+                              label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                             >
                               {wallet.categories.map((entry, index) => (
                                 <Cell key={`cell-${index}`} fill={entry.fill} />
                               ))}
-                            </Bar>
-                          </BarChart>
+                            </Pie>
+                            <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                            <Legend />
+                          </PieChart>
                         </ResponsiveContainer>
                       </div>
                     </CardContent>
                   </Card>
-                </TabsContent>
-              ))}
-            </Tabs>
-          ) : (
-            <div className="text-center py-10">
-              <p className="text-gray-600">Nenhum dado disponível para o período selecionado.</p>
-              <Button onClick={fetchWalletsData} className="mt-4">
-                Carregar Dados
-              </Button>
-            </div>
-          )}
-        </div>
+                  
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Contas a pagar</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {wallet.bills.length === 0 ? (
+                          <p className="text-gray-500 text-center py-8">Não há contas pendentes.</p>
+                        ) : (
+                          wallet.bills.map((bill, index) => (
+                            <div key={index} className="flex justify-between items-center border-b pb-3">
+                              <div>
+                                <p className="font-medium">{bill.description}</p>
+                                <p className="text-sm text-gray-500">Vencimento: {formatDate(bill.dueDate)}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-bold text-finance-expense">{formatCurrency(bill.amount)}</p>
+                                <span 
+                                  className={`text-xs px-2 py-1 rounded-full ${
+                                    bill.status === 'paid' 
+                                      ? 'bg-green-100 text-green-800' 
+                                      : bill.status === 'overdue'
+                                        ? 'bg-red-100 text-red-800'
+                                        : 'bg-yellow-100 text-yellow-800'
+                                  }`}
+                                >
+                                  {bill.status === 'paid' 
+                                    ? 'Pago' 
+                                    : bill.status === 'overdue'
+                                      ? 'Atrasado'
+                                      : 'Pendente'}
+                                </span>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </TabsContent>
+            );
+          })}
+        </Tabs>
       </div>
     </div>
   );

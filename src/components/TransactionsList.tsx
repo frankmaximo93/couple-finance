@@ -15,6 +15,11 @@ type Transaction = {
   date: string;
   type: string;
   responsibility: string;
+  payment_method?: 'cash' | 'credit';
+  installments?: number;
+  due_date?: string;
+  split_expense?: boolean;
+  paid_by?: string;
 };
 
 const TransactionsList = ({ isActive }: TransactionsListProps) => {
@@ -61,12 +66,33 @@ const TransactionsList = ({ isActive }: TransactionsListProps) => {
   };
 
   const formatDate = (dateString: string) => {
+    if (!dateString) return '';
     const date = new Date(dateString);
     return date.toLocaleDateString('pt-BR');
   };
 
   const getTypeLabel = (type: string) => {
     return type === 'income' ? 'Receita' : 'Despesa';
+  };
+
+  const getPaymentMethodLabel = (method?: 'cash' | 'credit') => {
+    if (!method) return 'À Vista';
+    return method === 'cash' ? 'À Vista' : 'Crédito';
+  };
+
+  const getInstallmentsLabel = (transaction: Transaction) => {
+    if (!transaction.payment_method || transaction.payment_method === 'cash') return '';
+    return `${transaction.installments}x`;
+  };
+
+  const getSplitInfo = (transaction: Transaction) => {
+    if (!transaction.split_expense) return '';
+    
+    const paidBy = transaction.paid_by === 'franklin' ? 'Franklim' : 'Michele';
+    const owedBy = transaction.paid_by === 'franklin' ? 'Michele' : 'Franklim';
+    const halfAmount = (transaction.amount / 2).toFixed(2);
+    
+    return `${paidBy} pagou (${owedBy} deve R$ ${halfAmount})`;
   };
 
   if (!isActive) return null;
@@ -93,7 +119,9 @@ const TransactionsList = ({ isActive }: TransactionsListProps) => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categoria</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Responsabilidade</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pagamento</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Resp.</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Divisão</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -120,7 +148,21 @@ const TransactionsList = ({ isActive }: TransactionsListProps) => {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {getPaymentMethodLabel(transaction.payment_method)}
+                        {transaction.payment_method === 'credit' && (
+                          <span className="ml-1">
+                            ({getInstallmentsLabel(transaction)})
+                            <div className="text-xs text-gray-500">
+                              Venc: {formatDate(transaction.due_date || '')}
+                            </div>
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         <span className="capitalize">{transaction.responsibility}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {getSplitInfo(transaction)}
                       </td>
                     </tr>
                   ))}

@@ -290,7 +290,6 @@ const Dashboard = ({ isActive }: DashboardProps) => {
                       <Progress 
                         value={Math.max(0, Math.min(getSavingsPercentage(), 100))} 
                         className="h-2" 
-                        indicatorClassName={getSavingsColor(getSavingsPercentage())}
                       />
                     </div>
                     <div className="flex items-center justify-center w-16 h-16 rounded-full bg-blue-100">
@@ -317,7 +316,7 @@ const Dashboard = ({ isActive }: DashboardProps) => {
                         margin={{ top: 20, right: 30, left: 20, bottom: 70 }}
                       >
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="category" tick={{ angle: -45, textAnchor: 'end', dy: 10 }} height={70} />
+                        <XAxis dataKey="category" />
                         <YAxis />
                         <Tooltip formatter={(value) => `R$ ${value}`} />
                         <Legend />
@@ -349,7 +348,6 @@ const Dashboard = ({ isActive }: DashboardProps) => {
                           <Progress 
                             value={item.percentage} 
                             className="h-2" 
-                            indicatorClassName={getProgressColor(item.percentage)}
                           />
                         </div>
                       </div>

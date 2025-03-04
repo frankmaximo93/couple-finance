@@ -1,6 +1,20 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { Input } from './ui/input';
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from './ui/select';
+import { Calendar } from './ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Button } from './ui/button';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { CalendarIcon } from 'lucide-react';
 
 type TransactionFormProps = {
   isActive: boolean;
@@ -18,12 +32,19 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
     category_id: '',
     date: '',
     type: '',
-    responsibility: ''
+    responsibility: '',
+    payment_method: 'cash', // 'cash' para à vista ou 'credit' para crédito
+    installments: '1',      // número de parcelas
+    due_date: '',           // data de vencimento
+    split_expense: false,   // se a despesa é compartilhada
+    paid_by: ''             // quem pagou a despesa compartilhada
   });
   
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [categories, setCategories] = useState<Category[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSplitOptions, setShowSplitOptions] = useState(false);
+  const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
   
   useEffect(() => {
     if (isActive) {
@@ -33,7 +54,8 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
       const today = new Date().toISOString().split('T')[0];
       setFormData(prev => ({
         ...prev,
-        date: today
+        date: today,
+        due_date: today
       }));
     }
   }, [isActive]);
@@ -66,6 +88,71 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
         [name]: ''
       }));
     }
+
+    // Mostrar opções de divisão quando responsabilidade for 'casal'
+    if (name === 'responsibility' && value === 'casal') {
+      setShowSplitOptions(true);
+    } else if (name === 'responsibility' && value !== 'casal') {
+      setShowSplitOptions(false);
+      setFormData(prev => ({
+        ...prev,
+        split_expense: false,
+        paid_by: ''
+      }));
+    }
+
+    // Habilitar campos de crédito quando método de pagamento for crédito
+    if (name === 'payment_method' && value === 'credit') {
+      setFormData(prev => ({
+        ...prev,
+        installments: '1'
+      }));
+    }
+  };
+
+  const handleSelectChange = (name: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    
+    // Clear error
+    if (errors[name]) {
+      setErrors(prev => ({
+        ...prev,
+        [name]: ''
+      }));
+    }
+
+    // Lógica adicional para campos específicos
+    if (name === 'responsibility' && value === 'casal') {
+      setShowSplitOptions(true);
+    } else if (name === 'responsibility' && value !== 'casal') {
+      setShowSplitOptions(false);
+      setFormData(prev => ({
+        ...prev,
+        split_expense: false,
+        paid_by: ''
+      }));
+    }
+  };
+
+  const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, checked } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: checked
+    }));
+  };
+
+  const handleDueDateSelect = (date: Date | undefined) => {
+    setDueDate(date);
+    if (date) {
+      setFormData(prev => ({
+        ...prev,
+        due_date: date.toISOString().split('T')[0]
+      }));
+    }
   };
   
   const validate = () => {
@@ -96,6 +183,20 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
     if (!formData.responsibility) {
       newErrors.responsibility = 'Responsabilidade é obrigatória';
     }
+
+    if (formData.payment_method === 'credit') {
+      if (!formData.installments || parseInt(formData.installments) < 1) {
+        newErrors.installments = 'Número de parcelas deve ser pelo menos 1';
+      }
+      
+      if (!formData.due_date) {
+        newErrors.due_date = 'Data de vencimento é obrigatória para compras no crédito';
+      }
+    }
+
+    if (formData.split_expense && !formData.paid_by) {
+      newErrors.paid_by = 'É necessário informar quem pagou a despesa compartilhada';
+    }
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -109,19 +210,26 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
     setIsSubmitting(true);
     
     try {
+      const transactionData = {
+        description: formData.description,
+        amount: parseFloat(formData.amount),
+        category_id: parseInt(formData.category_id),
+        date: formData.date,
+        type: formData.type,
+        responsibility: formData.responsibility,
+        payment_method: formData.payment_method,
+        installments: parseInt(formData.installments),
+        due_date: formData.due_date,
+        split_expense: formData.split_expense,
+        paid_by: formData.paid_by
+      };
+
       const response = await fetch('http://localhost:3000/api/transactions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          description: formData.description,
-          amount: parseFloat(formData.amount),
-          category_id: parseInt(formData.category_id),
-          date: formData.date,
-          type: formData.type,
-          responsibility: formData.responsibility
-        })
+        body: JSON.stringify(transactionData)
       });
       
       if (!response.ok) {
@@ -138,8 +246,15 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
         category_id: '',
         date: new Date().toISOString().split('T')[0],
         type: '',
-        responsibility: ''
+        responsibility: '',
+        payment_method: 'cash',
+        installments: '1',
+        due_date: new Date().toISOString().split('T')[0],
+        split_expense: false,
+        paid_by: ''
       });
+      setDueDate(undefined);
+      setShowSplitOptions(false);
       
     } catch (error) {
       console.error('Erro ao salvar transação:', error);
@@ -160,13 +275,13 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
               <label htmlFor="description" className="block text-sm font-medium text-gray-700">
                 Descrição
               </label>
-              <input
+              <Input
                 type="text"
                 id="description"
                 name="description"
                 value={formData.description}
                 onChange={handleChange}
-                className={`w-full px-4 py-3 rounded-xl border ${errors.description ? 'border-red-300 bg-red-50' : 'border-gray-300'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
+                className={errors.description ? 'border-red-300 bg-red-50' : ''}
                 placeholder="Ex: Compras no supermercado"
               />
               {errors.description && (
@@ -178,13 +293,13 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
               <label htmlFor="amount" className="block text-sm font-medium text-gray-700">
                 Valor (R$)
               </label>
-              <input
+              <Input
                 type="number"
                 id="amount"
                 name="amount"
                 value={formData.amount}
                 onChange={handleChange}
-                className={`w-full px-4 py-3 rounded-xl border ${errors.amount ? 'border-red-300 bg-red-50' : 'border-gray-300'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
+                className={errors.amount ? 'border-red-300 bg-red-50' : ''}
                 placeholder="0.00"
                 step="0.01"
                 min="0.01"
@@ -198,13 +313,13 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
               <label htmlFor="date" className="block text-sm font-medium text-gray-700">
                 Data
               </label>
-              <input
+              <Input
                 type="date"
                 id="date"
                 name="date"
                 value={formData.date}
                 onChange={handleChange}
-                className={`w-full px-4 py-3 rounded-xl border ${errors.date ? 'border-red-300 bg-red-50' : 'border-gray-300'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
+                className={errors.date ? 'border-red-300 bg-red-50' : ''}
               />
               {errors.date && (
                 <p className="text-red-500 text-xs mt-1">{errors.date}</p>
@@ -215,17 +330,18 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
               <label htmlFor="type" className="block text-sm font-medium text-gray-700">
                 Tipo
               </label>
-              <select
-                id="type"
-                name="type"
+              <Select
                 value={formData.type}
-                onChange={handleChange}
-                className={`w-full px-4 py-3 rounded-xl border ${errors.type ? 'border-red-300 bg-red-50' : 'border-gray-300'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
+                onValueChange={(value) => handleSelectChange('type', value)}
               >
-                <option value="">Selecione o Tipo</option>
-                <option value="income">Receita</option>
-                <option value="expense">Despesa</option>
-              </select>
+                <SelectTrigger className={errors.type ? 'border-red-300 bg-red-50' : ''}>
+                  <SelectValue placeholder="Selecione o Tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="income">Receita</SelectItem>
+                  <SelectItem value="expense">Despesa</SelectItem>
+                </SelectContent>
+              </Select>
               {errors.type && (
                 <p className="text-red-500 text-xs mt-1">{errors.type}</p>
               )}
@@ -235,18 +351,19 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
               <label htmlFor="category_id" className="block text-sm font-medium text-gray-700">
                 Categoria
               </label>
-              <select
-                id="category_id"
-                name="category_id"
+              <Select
                 value={formData.category_id}
-                onChange={handleChange}
-                className={`w-full px-4 py-3 rounded-xl border ${errors.category_id ? 'border-red-300 bg-red-50' : 'border-gray-300'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
+                onValueChange={(value) => handleSelectChange('category_id', value)}
               >
-                <option value="">Selecione a Categoria</option>
-                {categories.map(category => (
-                  <option key={category.id} value={category.id}>{category.name}</option>
-                ))}
-              </select>
+                <SelectTrigger className={errors.category_id ? 'border-red-300 bg-red-50' : ''}>
+                  <SelectValue placeholder="Selecione a Categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map(category => (
+                    <SelectItem key={category.id} value={category.id.toString()}>{category.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {errors.category_id && (
                 <p className="text-red-500 text-xs mt-1">{errors.category_id}</p>
               )}
@@ -256,32 +373,148 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
               <label htmlFor="responsibility" className="block text-sm font-medium text-gray-700">
                 Responsabilidade
               </label>
-              <select
-                id="responsibility"
-                name="responsibility"
+              <Select
                 value={formData.responsibility}
-                onChange={handleChange}
-                className={`w-full px-4 py-3 rounded-xl border ${errors.responsibility ? 'border-red-300 bg-red-50' : 'border-gray-300'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
+                onValueChange={(value) => handleSelectChange('responsibility', value)}
               >
-                <option value="">Selecione a Responsabilidade</option>
-                <option value="casal">Casal</option>
-                <option value="franklin">Franklim</option>
-                <option value="michele">Michele</option>
-              </select>
+                <SelectTrigger className={errors.responsibility ? 'border-red-300 bg-red-50' : ''}>
+                  <SelectValue placeholder="Selecione a Responsabilidade" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="casal">Casal</SelectItem>
+                  <SelectItem value="franklin">Franklim</SelectItem>
+                  <SelectItem value="michele">Michele</SelectItem>
+                </SelectContent>
+              </Select>
               {errors.responsibility && (
                 <p className="text-red-500 text-xs mt-1">{errors.responsibility}</p>
               )}
             </div>
+
+            {/* Início dos novos campos */}
+            <div className="space-y-2">
+              <label htmlFor="payment_method" className="block text-sm font-medium text-gray-700">
+                Método de Pagamento
+              </label>
+              <Select
+                value={formData.payment_method}
+                onValueChange={(value) => handleSelectChange('payment_method', value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o Método" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">À Vista</SelectItem>
+                  <SelectItem value="credit">Cartão de Crédito</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {formData.payment_method === 'credit' && (
+              <>
+                <div className="space-y-2">
+                  <label htmlFor="installments" className="block text-sm font-medium text-gray-700">
+                    Número de Parcelas
+                  </label>
+                  <Input
+                    type="number"
+                    id="installments"
+                    name="installments"
+                    value={formData.installments}
+                    onChange={handleChange}
+                    className={errors.installments ? 'border-red-300 bg-red-50' : ''}
+                    min="1"
+                    max="24"
+                  />
+                  {errors.installments && (
+                    <p className="text-red-500 text-xs mt-1">{errors.installments}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="due_date" className="block text-sm font-medium text-gray-700">
+                    Data de Vencimento
+                  </label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={`w-full justify-start text-left font-normal ${
+                          errors.due_date ? 'border-red-300 bg-red-50' : ''
+                        }`}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {dueDate ? format(dueDate, 'PPP', { locale: ptBR }) : 'Selecione uma data'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={dueDate}
+                        onSelect={handleDueDateSelect}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  {errors.due_date && (
+                    <p className="text-red-500 text-xs mt-1">{errors.due_date}</p>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Opções de divisão de despesa para o casal */}
+            {showSplitOptions && (
+              <>
+                <div className="space-y-2 flex items-center">
+                  <input
+                    type="checkbox"
+                    id="split_expense"
+                    name="split_expense"
+                    checked={formData.split_expense}
+                    onChange={handleCheckboxChange}
+                    className="mr-2 h-4 w-4"
+                  />
+                  <label htmlFor="split_expense" className="text-sm font-medium text-gray-700">
+                    Dividir despesa (alguém pagou e será reembolsado)
+                  </label>
+                </div>
+
+                {formData.split_expense && (
+                  <div className="space-y-2">
+                    <label htmlFor="paid_by" className="block text-sm font-medium text-gray-700">
+                      Quem pagou a despesa?
+                    </label>
+                    <Select
+                      value={formData.paid_by}
+                      onValueChange={(value) => handleSelectChange('paid_by', value)}
+                    >
+                      <SelectTrigger className={errors.paid_by ? 'border-red-300 bg-red-50' : ''}>
+                        <SelectValue placeholder="Selecione quem pagou" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="franklin">Franklim</SelectItem>
+                        <SelectItem value="michele">Michele</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {errors.paid_by && (
+                      <p className="text-red-500 text-xs mt-1">{errors.paid_by}</p>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+            {/* Fim dos novos campos */}
           </div>
           
           <div className="pt-4">
-            <button
+            <Button
               type="submit"
               disabled={isSubmitting}
               className={`w-full md:w-auto px-8 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 text-white font-medium shadow-md hover:shadow-lg transition-all ${isSubmitting ? 'opacity-70 cursor-not-allowed' : 'hover:translate-y-[-2px]'}`}
             >
               {isSubmitting ? 'Salvando...' : 'Salvar Transação'}
-            </button>
+            </Button>
           </div>
         </form>
       </div>
