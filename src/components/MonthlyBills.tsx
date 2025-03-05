@@ -367,7 +367,7 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
                       <label className="text-sm font-medium">Responsabilidade</label>
                       <Select 
                         value={newBill.responsibility}
-                        onValueChange={(value) => setNewBill({...newBill, responsibility: value})}
+                        onValueChange={(value) => setNewBill({...newBill, responsibility: value as Responsibility})}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione" />
@@ -491,7 +491,7 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
                             {format(new Date(bill.due_date), 'dd/MM/yyyy')}
                           </td>
                           <td className="py-3 px-4 whitespace-nowrap text-sm capitalize">
-                            {bill.responsibility as Responsibility}
+                            {bill.responsibility}
                           </td>
                           <td className="py-3 px-4 text-sm">
                             {getStatusBadge(bill.status)}

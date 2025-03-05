@@ -14,12 +14,14 @@ export const isSessionActive = async () => {
 };
 
 // Define types for the RPC functions to help TypeScript understand the return types
+// Properly define return types for our RPC functions
 declare module '@supabase/supabase-js' {
   interface SupabaseClient<Database> {
     rpc<T = any>(
       fn: 'get_linked_users',
-      params?: {}
-    ): Promise<{ data: { email: string, relationship: string }[]; error: Error | null }>;
+      params?: Record<string, any>
+    ): Promise<{ data: Array<{ email: string, relationship: string }>; error: Error | null }>;
+    
     rpc<T = any>(
       fn: 'link_users',
       params: { other_user_email: string; relationship_type: string }
