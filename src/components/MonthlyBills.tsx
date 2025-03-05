@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
@@ -66,7 +65,6 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
       
       setCategories(data || []);
       
-      // Set default category if available
       if (data && data.length > 0) {
         setNewBill(prev => ({ ...prev, category: data[0].id }));
       }
@@ -80,14 +78,12 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
     
     setIsLoading(true);
     try {
-      // Get first and last day of selected month
       const firstDay = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1);
       const lastDay = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0);
       
       const firstDayStr = firstDay.toISOString().split('T')[0];
       const lastDayStr = lastDay.toISOString().split('T')[0];
       
-      // Fetch fixed/recurring expenses for all months
       const { data: recurringData, error: recurringError } = await supabase
         .from('transactions')
         .select('id, description, amount, due_date, date, status, responsibility, category_id, is_recurring')
@@ -96,7 +92,6 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
         
       if (recurringError) throw recurringError;
       
-      // Fetch regular expenses for the selected month
       const { data: regularData, error: regularError } = await supabase
         .from('transactions')
         .select('id, description, amount, due_date, date, status, responsibility, category_id, is_recurring')
@@ -105,22 +100,18 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
         
       if (regularError) throw regularError;
       
-      // Fetch categories to get names
       const { data: categoriesData, error: categoriesError } = await supabase
         .from('categories')
         .select('id, name');
         
       if (categoriesError) throw categoriesError;
       
-      // Create category lookup
       const categoryMap: Record<string, string> = {};
       categoriesData.forEach((cat: {id: string, name: string}) => {
         categoryMap[cat.id] = cat.name;
       });
       
-      // Combine and process data
       const processedBills: Bill[] = [...recurringData, ...regularData]
-        // Remove duplicates (items that are both recurring and in the current month)
         .filter((bill, index, self) => 
           index === self.findIndex((b) => b.id === bill.id)
         )
@@ -129,9 +120,7 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
           description: bill.description,
           amount: bill.amount,
           due_date: bill.due_date || bill.date,
-          // Cast the status string to BillStatus type, or use 'pending' as default
           status: (bill.status as BillStatus) || 'pending',
-          // Cast the responsibility string to Responsibility type, or use 'casal' as default
           responsibility: (bill.responsibility as Responsibility) || 'casal',
           category: categoryMap[bill.category_id] || 'Outro',
           is_recurring: bill.is_recurring
@@ -182,7 +171,6 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
         
       if (error) throw error;
       
-      // Add the new bill to the local state
       const categoryName = categories.find(c => c.id === newBill.category)?.name || 'Outro';
       
       const newBillObject: Bill = {
@@ -198,7 +186,6 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
       
       setBills([...bills, newBillObject]);
       
-      // Reset form
       setNewBill({
         name: '',
         amount: '',
@@ -226,7 +213,6 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
         
       if (error) throw error;
       
-      // Update local state
       const updatedBills = bills.map(bill => 
         bill.id === id ? { ...bill, status: newStatus } : bill
       );
