@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
@@ -63,7 +62,6 @@ const Wallets = ({ isActive }: WalletsProps) => {
     setIsLoading(true);
     
     try {
-      // Fetch debts
       const { data: debtsData, error: debtsError } = await supabase
         .from('debts')
         .select('*, transactions(description)')
@@ -71,7 +69,6 @@ const Wallets = ({ isActive }: WalletsProps) => {
         
       if (debtsError) throw debtsError;
       
-      // Fetch transactions for wallet summary
       const { data: transactionsData, error: transactionsError } = await supabase
         .from('transactions')
         .select('*')
@@ -79,20 +76,17 @@ const Wallets = ({ isActive }: WalletsProps) => {
         
       if (transactionsError) throw transactionsError;
       
-      // Fetch categories for spending breakdown
       const { data: categoriesData, error: categoriesError } = await supabase
         .from('categories')
         .select('id, name');
         
       if (categoriesError) throw categoriesError;
       
-      // Create lookup map for categories
       const categoriesMap: Record<string, string> = {};
       categoriesData.forEach((cat: any) => {
         categoriesMap[cat.id] = cat.name;
       });
 
-      // Process transactions data to build wallets
       const processedDebts = debtsData.map((debt: any) => ({
         id: debt.id,
         amount: debt.amount,
@@ -103,7 +97,6 @@ const Wallets = ({ isActive }: WalletsProps) => {
         is_paid: debt.is_paid
       }));
       
-      // Build wallets data
       const franklinWallet = buildWalletData('franklin', transactionsData, categoriesMap);
       const micheleWallet = buildWalletData('michele', transactionsData, categoriesMap);
       
@@ -126,12 +119,10 @@ const Wallets = ({ isActive }: WalletsProps) => {
     transactions: any[], 
     categoriesMap: Record<string, string>
   ): WalletData => {
-    // Filter transactions for this owner
     const ownerTransactions = transactions.filter(
       t => t.responsibility === owner || t.responsibility === 'casal'
     );
     
-    // Calculate financial summary
     const income = ownerTransactions
       .filter(t => t.type === 'income')
       .reduce((sum, t) => sum + parseFloat(t.amount), 0);
@@ -142,7 +133,6 @@ const Wallets = ({ isActive }: WalletsProps) => {
       
     const balance = income - expenses;
     
-    // Calculate spending by category
     const categorySpending: Record<string, number> = {};
     ownerTransactions
       .filter(t => t.type === 'expense')
@@ -156,7 +146,6 @@ const Wallets = ({ isActive }: WalletsProps) => {
         }
       });
     
-    // Format category data for chart
     const colors = ['#FF8042', '#00C49F', '#FFBB28', '#0088FE', '#8884d8', '#82ca9d'];
     const categories = Object.entries(categorySpending).map(([catId, value], index) => ({
       name: categoriesMap[catId] || 'Outros',
@@ -164,7 +153,6 @@ const Wallets = ({ isActive }: WalletsProps) => {
       fill: colors[index % colors.length]
     }));
     
-    // Get pending bills
     const bills = ownerTransactions
       .filter(t => t.type === 'expense' && 
         (t.status === 'pending' || t.status === 'overdue' || 
@@ -195,7 +183,6 @@ const Wallets = ({ isActive }: WalletsProps) => {
         
       if (error) throw error;
       
-      // Update local state
       setDebts(debts.map(debt => 
         debt.id === debtId ? { ...debt, is_paid: true } : debt
       ));
@@ -301,8 +288,7 @@ const Wallets = ({ isActive }: WalletsProps) => {
                         </div>
                         <Progress 
                           value={wallet.income > 0 ? (wallet.expenses / wallet.income) * 100 : 0} 
-                          className="h-2 bg-gray-200" 
-                          indicatorClassName="bg-blue-500" 
+                          className="h-2 bg-gray-200"
                         />
                       </div>
                       <div>

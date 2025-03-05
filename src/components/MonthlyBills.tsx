@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
@@ -19,13 +18,16 @@ type MonthlyBillsProps = {
   isActive: boolean;
 };
 
+type BillStatus = 'pending' | 'paid' | 'overdue' | 'upcoming';
+type Responsibility = 'casal' | 'franklin' | 'michele';
+
 type Bill = {
   id: string;
   description: string;
   amount: number;
   due_date: string;
-  status: 'pending' | 'paid' | 'overdue' | 'upcoming';
-  responsibility: 'casal' | 'franklin' | 'michele';
+  status: BillStatus;
+  responsibility: Responsibility;
   category: string;
   is_recurring: boolean;
 };
@@ -39,7 +41,7 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
     name: '',
     amount: '',
     dueDate: new Date(),
-    responsibility: 'casal',
+    responsibility: 'casal' as Responsibility,
     category: '',
   });
   const [showAddForm, setShowAddForm] = useState(false);
@@ -126,8 +128,8 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
           description: bill.description,
           amount: bill.amount,
           due_date: bill.due_date || bill.date,
-          status: bill.status as 'pending' | 'paid' | 'overdue' | 'upcoming',
-          responsibility: bill.responsibility as 'casal' | 'franklin' | 'michele',
+          status: (bill.status || 'pending') as BillStatus,
+          responsibility: (bill.responsibility || 'casal') as Responsibility,
           category: categoryMap[bill.category_id] || 'Outro',
           is_recurring: bill.is_recurring
         }));
@@ -423,7 +425,7 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
                     <p className="text-sm font-medium text-blue-800">Total</p>
                     <p className="text-2xl font-bold">R$ {getTotalAmount().toFixed(2)}</p>
                   </div>
-                  <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
+                  <div className="h-12 w-12 rounded-full bg-blue-500 flex items-center justify-center">
                     <CalendarIcon className="h-6 w-6 text-blue-600" />
                   </div>
                 </div>

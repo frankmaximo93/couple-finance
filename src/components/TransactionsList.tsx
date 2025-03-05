@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,7 +16,7 @@ type Transaction = {
   date: string;
   type: string;
   responsibility: string;
-  payment_method?: 'cash' | 'credit';
+  payment_method?: 'cash' | 'credit' | null;
   installments?: number;
   due_date?: string;
   split_expense?: boolean;
@@ -68,7 +67,26 @@ const TransactionsList = ({ isActive }: TransactionsListProps) => {
       });
 
       setCategories(categoryMap);
-      setTransactions(transactionsResponse.data);
+      
+      // Transform the data to match the Transaction type
+      const formattedTransactions: Transaction[] = transactionsResponse.data.map((t: any) => ({
+        id: t.id,
+        description: t.description,
+        amount: t.amount,
+        category_id: t.category_id,
+        date: t.date,
+        type: t.type,
+        responsibility: t.responsibility,
+        payment_method: t.payment_method as 'cash' | 'credit' | null,
+        installments: t.installments,
+        due_date: t.due_date,
+        split_expense: t.split_expense,
+        paid_by: t.paid_by,
+        status: (t.status || 'pending') as 'pending' | 'paid' | 'overdue',
+        is_recurring: t.is_recurring
+      }));
+      
+      setTransactions(formattedTransactions);
     } catch (error) {
       console.error('Erro ao buscar dados:', error);
       toast.error('Erro ao carregar transações');
@@ -87,7 +105,7 @@ const TransactionsList = ({ isActive }: TransactionsListProps) => {
     return type === 'income' ? 'Receita' : 'Despesa';
   };
 
-  const getPaymentMethodLabel = (method?: 'cash' | 'credit') => {
+  const getPaymentMethodLabel = (method?: 'cash' | 'credit' | null) => {
     if (!method) return 'À Vista';
     return method === 'cash' ? 'À Vista' : 'Crédito';
   };
