@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,23 +11,38 @@ interface AccountLinkingProps {
   isActive: boolean;
 }
 
+type LinkedAccount = {
+  email: string;
+  relationship: string;
+};
+
 const AccountLinking = ({ isActive }: AccountLinkingProps) => {
   const [partnerEmail, setPartnerEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [linkedAccounts, setLinkedAccounts] = useState<{email: string, relationship: string}[]>([]);
+  const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[]>([]);
   const { user } = useAuth();
+
+  useEffect(() => {
+    if (isActive && user) {
+      fetchLinkedAccounts();
+    }
+  }, [isActive, user]);
 
   // Fetch existing linked accounts when component is active
   const fetchLinkedAccounts = async () => {
     if (!user) return;
     
     try {
+      // Using RPC function to get linked users
       const { data, error } = await supabase.rpc('get_linked_users');
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching linked accounts:', error);
+        return;
+      }
       
       if (data && Array.isArray(data)) {
-        setLinkedAccounts(data);
+        setLinkedAccounts(data as LinkedAccount[]);
       }
     } catch (error) {
       console.error('Erro ao carregar contas vinculadas:', error);

@@ -160,6 +160,30 @@ export type Database = {
           },
         ]
       }
+      user_relationships: {
+        Row: {
+          created_at: string | null
+          id: string
+          related_user_id: string
+          relationship_type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          related_user_id: string
+          relationship_type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          related_user_id?: string
+          relationship_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       wallets: {
         Row: {
           balance: number | null
@@ -189,7 +213,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      link_users: {
+        Args: {
+          other_user_email: string
+          relationship_type?: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
