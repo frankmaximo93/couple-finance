@@ -42,6 +42,7 @@ const AccountLinking = ({ isActive }: AccountLinkingProps) => {
       }
       
       if (data && Array.isArray(data)) {
+        console.log('Linked accounts data:', data);
         setLinkedAccounts(data as LinkedAccount[]);
       }
     } catch (error) {

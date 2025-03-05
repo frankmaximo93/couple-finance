@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -29,13 +30,33 @@ const TransactionsList = ({ isActive }: TransactionsListProps) => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [categories, setCategories] = useState<{[key: string]: string}>({});
+  const [linkedAccounts, setLinkedAccounts] = useState<Array<{ email: string, relationship: string }>>([]);
   const { user } = useAuth();
 
   useEffect(() => {
     if (isActive && user) {
       fetchData();
+      fetchLinkedAccounts();
     }
   }, [isActive, user]);
+
+  const fetchLinkedAccounts = async () => {
+    try {
+      const { data, error } = await supabase.rpc('get_linked_users');
+      
+      if (error) {
+        console.error('Error fetching linked accounts:', error);
+        return;
+      }
+      
+      if (data && Array.isArray(data)) {
+        setLinkedAccounts(data);
+        console.log('Linked accounts for TransactionsList:', data);
+      }
+    } catch (error) {
+      console.error('Error loading linked accounts:', error);
+    }
+  };
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -53,12 +74,16 @@ const TransactionsList = ({ isActive }: TransactionsListProps) => {
       ]);
 
       if (categoriesResponse.error) {
+        console.error('Error fetching categories:', categoriesResponse.error);
         throw new Error(categoriesResponse.error.message);
       }
 
       if (transactionsResponse.error) {
+        console.error('Error fetching transactions:', transactionsResponse.error);
         throw new Error(transactionsResponse.error.message);
       }
+
+      console.log('Transactions data:', transactionsResponse.data);
 
       // Create a category lookup map
       const categoryMap: {[key: string]: string} = {};
@@ -139,6 +164,14 @@ const TransactionsList = ({ isActive }: TransactionsListProps) => {
   return (
     <div className="animate-fade-in">
       <div className="glass-card rounded-2xl p-6 shadow-md">
+        {linkedAccounts.length === 0 && (
+          <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-yellow-800 text-sm">
+              Nenhuma conta vinculada encontrada. Vá para a página de Vincular Contas para compartilhar dados financeiros.
+            </p>
+          </div>
+        )}
+        
         {isLoading ? (
           <div className="flex justify-center items-center h-64">
             <div className="animate-pulse-shadow h-12 w-12 rounded-full bg-blue-500"></div>

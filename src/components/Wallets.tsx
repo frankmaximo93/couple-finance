@@ -51,12 +51,32 @@ const Wallets = ({ isActive }: WalletsProps) => {
   const [wallets, setWallets] = useState<Record<string, WalletData>>({});
   const [debts, setDebts] = useState<DebtInfo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [linkedAccounts, setLinkedAccounts] = useState<Array<{ email: string, relationship: string }>>([]);
 
   useEffect(() => {
     if (isActive && user) {
+      fetchLinkedAccounts();
       fetchWalletData();
     }
   }, [isActive, user]);
+
+  const fetchLinkedAccounts = async () => {
+    try {
+      const { data, error } = await supabase.rpc('get_linked_users');
+      
+      if (error) {
+        console.error('Error fetching linked accounts:', error);
+        return;
+      }
+      
+      if (data && Array.isArray(data)) {
+        setLinkedAccounts(data);
+        console.log('Linked accounts:', data);
+      }
+    } catch (error) {
+      console.error('Error loading linked accounts:', error);
+    }
+  };
 
   const fetchWalletData = async () => {
     setIsLoading(true);
@@ -181,7 +201,10 @@ const Wallets = ({ isActive }: WalletsProps) => {
         .update({ is_paid: true })
         .eq('id', debtId);
         
-      if (error) throw error;
+      if (error) {
+        console.error('Error updating debt:', error);
+        throw error;
+      }
       
       setDebts(debts.map(debt => 
         debt.id === debtId ? { ...debt, is_paid: true } : debt
@@ -241,6 +264,14 @@ const Wallets = ({ isActive }: WalletsProps) => {
   return (
     <div className="animate-fade-in">
       <div className="glass-card rounded-2xl p-8 shadow-md">
+        {linkedAccounts.length === 0 && (
+          <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-yellow-800 text-sm">
+              Nenhuma conta vinculada encontrada. Vá para a página de Vincular Contas para compartilhar dados financeiros.
+            </p>
+          </div>
+        )}
+        
         <Tabs defaultValue="franklin" value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full grid-cols-2 mb-8">
             <TabsTrigger value="franklin">Carteira do Franklim</TabsTrigger>
