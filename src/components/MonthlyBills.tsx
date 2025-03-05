@@ -12,22 +12,26 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ptBR } from "date-fns/locale";
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/context/AuthContext';
 
 type MonthlyBillsProps = {
   isActive: boolean;
 };
 
 type Bill = {
-  id: number;
-  name: string;
+  id: string;
+  description: string;
   amount: number;
-  dueDate: string;
-  status: 'pending' | 'paid' | 'late' | 'upcoming';
+  due_date: string;
+  status: 'pending' | 'paid' | 'overdue' | 'upcoming';
   responsibility: 'casal' | 'franklin' | 'michele';
   category: string;
+  is_recurring: boolean;
 };
 
 const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
+  const { user } = useAuth();
   const [selectedMonth, setSelectedMonth] = useState<Date | undefined>(new Date());
   const [bills, setBills] = useState<Bill[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -36,81 +40,109 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
     amount: '',
     dueDate: new Date(),
     responsibility: 'casal',
-    category: 'Despesas Casa'
+    category: '',
   });
   const [showAddForm, setShowAddForm] = useState(false);
+  const [categories, setCategories] = useState<{id: string, name: string}[]>([]);
 
   useEffect(() => {
-    if (isActive) {
+    if (isActive && user) {
+      fetchCategories();
       fetchMonthlyBills();
     }
-  }, [isActive, selectedMonth]);
+  }, [isActive, selectedMonth, user]);
+
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('id, name')
+        .order('name');
+        
+      if (error) throw error;
+      
+      setCategories(data || []);
+      
+      // Set default category if available
+      if (data && data.length > 0) {
+        setNewBill(prev => ({ ...prev, category: data[0].id }));
+      }
+    } catch (error) {
+      console.error('Erro ao buscar categorias:', error);
+    }
+  };
 
   const fetchMonthlyBills = async () => {
+    if (!selectedMonth || !user) return;
+    
     setIsLoading(true);
     try {
-      // Simular dados para demonstração
-      // No ambiente real, você faria uma chamada para a API
-      setTimeout(() => {
-        const mockBills: Bill[] = [
-          {
-            id: 1,
-            name: 'Aluguel',
-            amount: 1200,
-            dueDate: '2025-03-10',
-            status: 'pending',
-            responsibility: 'casal',
-            category: 'Despesas Casa'
-          },
-          {
-            id: 2,
-            name: 'Energia Elétrica',
-            amount: 180,
-            dueDate: '2025-03-15',
-            status: 'paid',
-            responsibility: 'franklin',
-            category: 'Despesas Casa'
-          },
-          {
-            id: 3,
-            name: 'Internet',
-            amount: 120,
-            dueDate: '2025-03-20',
-            status: 'upcoming',
-            responsibility: 'michele',
-            category: 'Despesas Casa'
-          },
-          {
-            id: 4,
-            name: 'Plano de Saúde',
-            amount: 350,
-            dueDate: '2025-03-05',
-            status: 'late',
-            responsibility: 'casal',
-            category: 'Saúde'
-          },
-          {
-            id: 5,
-            name: 'Academia',
-            amount: 90,
-            dueDate: '2025-03-10',
-            status: 'paid',
-            responsibility: 'franklin',
-            category: 'Lazer'
-          }
-        ];
-        setBills(mockBills);
-        setIsLoading(false);
-      }, 800);
+      // Get first and last day of selected month
+      const firstDay = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1);
+      const lastDay = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0);
+      
+      const firstDayStr = firstDay.toISOString().split('T')[0];
+      const lastDayStr = lastDay.toISOString().split('T')[0];
+      
+      // Fetch fixed/recurring expenses for all months
+      const { data: recurringData, error: recurringError } = await supabase
+        .from('transactions')
+        .select('id, description, amount, due_date, date, status, responsibility, category_id, is_recurring')
+        .eq('is_recurring', true)
+        .eq('type', 'expense');
+        
+      if (recurringError) throw recurringError;
+      
+      // Fetch regular expenses for the selected month
+      const { data: regularData, error: regularError } = await supabase
+        .from('transactions')
+        .select('id, description, amount, due_date, date, status, responsibility, category_id, is_recurring')
+        .eq('type', 'expense')
+        .or(`due_date.gte.${firstDayStr},due_date.lte.${lastDayStr},date.gte.${firstDayStr},date.lte.${lastDayStr}`);
+        
+      if (regularError) throw regularError;
+      
+      // Fetch categories to get names
+      const { data: categoriesData, error: categoriesError } = await supabase
+        .from('categories')
+        .select('id, name');
+        
+      if (categoriesError) throw categoriesError;
+      
+      // Create category lookup
+      const categoryMap: Record<string, string> = {};
+      categoriesData.forEach((cat: {id: string, name: string}) => {
+        categoryMap[cat.id] = cat.name;
+      });
+      
+      // Combine and process data
+      const processedBills: Bill[] = [...recurringData, ...regularData]
+        // Remove duplicates (items that are both recurring and in the current month)
+        .filter((bill, index, self) => 
+          index === self.findIndex((b) => b.id === bill.id)
+        )
+        .map(bill => ({
+          id: bill.id,
+          description: bill.description,
+          amount: bill.amount,
+          due_date: bill.due_date || bill.date,
+          status: bill.status as 'pending' | 'paid' | 'overdue' | 'upcoming',
+          responsibility: bill.responsibility as 'casal' | 'franklin' | 'michele',
+          category: categoryMap[bill.category_id] || 'Outro',
+          is_recurring: bill.is_recurring
+        }));
+      
+      setBills(processedBills);
     } catch (error) {
       console.error('Erro ao buscar contas do mês:', error);
       toast.error('Erro ao carregar contas do mês');
+    } finally {
       setIsLoading(false);
     }
   };
 
-  const handleAddBill = () => {
-    if (!newBill.name || !newBill.amount) {
+  const handleAddBill = async () => {
+    if (!newBill.name || !newBill.amount || !user) {
       toast.error('Preencha todos os campos obrigatórios');
       return;
     }
@@ -121,50 +153,100 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
       return;
     }
 
-    // Simular adição de nova conta
-    const newBillObject: Bill = {
-      id: bills.length + 1,
-      name: newBill.name,
-      amount: amount,
-      dueDate: format(newBill.dueDate, 'yyyy-MM-dd'),
-      status: 'pending',
-      responsibility: newBill.responsibility as 'casal' | 'franklin' | 'michele',
-      category: newBill.category
-    };
-
-    setBills([...bills, newBillObject]);
-    setNewBill({
-      name: '',
-      amount: '',
-      dueDate: new Date(),
-      responsibility: 'casal',
-      category: 'Despesas Casa'
-    });
-    setShowAddForm(false);
-    toast.success('Conta adicionada com sucesso!');
+    try {
+      setIsLoading(true);
+      
+      const billData = {
+        user_id: user.id,
+        description: newBill.name,
+        amount: amount,
+        category_id: newBill.category,
+        date: format(new Date(), 'yyyy-MM-dd'),
+        due_date: format(newBill.dueDate, 'yyyy-MM-dd'),
+        type: 'expense',
+        responsibility: newBill.responsibility as 'casal' | 'franklin' | 'michele',
+        status: 'pending',
+        is_recurring: true
+      };
+      
+      const { data, error } = await supabase
+        .from('transactions')
+        .insert(billData)
+        .select()
+        .single();
+        
+      if (error) throw error;
+      
+      // Add the new bill to the local state
+      const categoryName = categories.find(c => c.id === newBill.category)?.name || 'Outro';
+      
+      const newBillObject: Bill = {
+        id: data.id,
+        description: data.description,
+        amount: data.amount,
+        due_date: data.due_date,
+        status: data.status,
+        responsibility: data.responsibility,
+        category: categoryName,
+        is_recurring: data.is_recurring
+      };
+      
+      setBills([...bills, newBillObject]);
+      
+      // Reset form
+      setNewBill({
+        name: '',
+        amount: '',
+        dueDate: new Date(),
+        responsibility: 'casal',
+        category: categories.length > 0 ? categories[0].id : '',
+      });
+      
+      setShowAddForm(false);
+      toast.success('Conta adicionada com sucesso!');
+    } catch (error) {
+      console.error('Erro ao adicionar conta:', error);
+      toast.error('Erro ao adicionar conta');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleChangeStatus = (id: number, newStatus: 'pending' | 'paid' | 'late' | 'upcoming') => {
-    const updatedBills = bills.map(bill => 
-      bill.id === id ? { ...bill, status: newStatus } : bill
-    );
-    setBills(updatedBills);
-    
-    const statusMessages = {
-      paid: 'Conta marcada como paga!',
-      pending: 'Conta marcada como pendente',
-      late: 'Conta marcada como atrasada',
-      upcoming: 'Conta marcada como próxima'
-    };
-    
-    toast.success(statusMessages[newStatus]);
+  const handleChangeStatus = async (id: string, newStatus: 'pending' | 'paid' | 'overdue' | 'upcoming') => {
+    try {
+      const { error } = await supabase
+        .from('transactions')
+        .update({ status: newStatus })
+        .eq('id', id);
+        
+      if (error) throw error;
+      
+      // Update local state
+      const updatedBills = bills.map(bill => 
+        bill.id === id ? { ...bill, status: newStatus } : bill
+      );
+      
+      setBills(updatedBills);
+      
+      const statusMessages = {
+        paid: 'Conta marcada como paga!',
+        pending: 'Conta marcada como pendente',
+        overdue: 'Conta marcada como atrasada',
+        upcoming: 'Conta marcada como próxima'
+      };
+      
+      toast.success(statusMessages[newStatus]);
+    } catch (error) {
+      console.error('Erro ao atualizar status:', error);
+      toast.error('Erro ao atualizar status');
+    }
   };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'paid':
         return <Badge className="bg-green-500"><Check className="h-3 w-3 mr-1" /> Pago</Badge>;
-      case 'late':
+      case 'overdue':
         return <Badge className="bg-red-500"><X className="h-3 w-3 mr-1" /> Atrasado</Badge>;
       case 'pending':
         return <Badge className="bg-yellow-500"><AlertCircle className="h-3 w-3 mr-1" /> Pendente</Badge>;
@@ -187,7 +269,7 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
 
   const getPendingAmount = () => {
     return bills
-      .filter(bill => bill.status === 'pending' || bill.status === 'late')
+      .filter(bill => bill.status === 'pending' || bill.status === 'overdue')
       .reduce((total, bill) => total + bill.amount, 0);
   };
 
@@ -272,8 +354,7 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
                           <Button
                             variant={"outline"}
                             className={cn(
-                              "w-full justify-start text-left font-normal",
-                              !newBill.dueDate && "text-muted-foreground"
+                              "w-full justify-start text-left font-normal"
                             )}
                           >
                             <CalendarIcon className="mr-2 h-4 w-4" />
@@ -318,11 +399,9 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
                           <SelectValue placeholder="Selecione" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="Despesas Casa">Despesas Casa</SelectItem>
-                          <SelectItem value="Alimentação">Alimentação</SelectItem>
-                          <SelectItem value="Saúde">Saúde</SelectItem>
-                          <SelectItem value="Lazer">Lazer</SelectItem>
-                          <SelectItem value="Educação">Educação</SelectItem>
+                          {categories.map(category => (
+                            <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -407,28 +486,32 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
                         <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Vencimento</th>
                         <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Responsabilidade</th>
                         <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Status</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Recorrente</th>
                         <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Ações</th>
                       </tr>
                     </thead>
                     <tbody>
                       {bills.map((bill) => (
                         <tr key={bill.id} className="border-b hover:bg-gray-50">
-                          <td className="py-3 px-4 text-sm font-medium">{bill.name}</td>
+                          <td className="py-3 px-4 text-sm font-medium">{bill.description}</td>
                           <td className="py-3 px-4 text-sm">{bill.category}</td>
                           <td className="py-3 px-4 text-sm font-medium">R$ {bill.amount.toFixed(2)}</td>
                           <td className="py-3 px-4 text-sm">
-                            {format(new Date(bill.dueDate), 'dd/MM/yyyy')}
+                            {format(new Date(bill.due_date), 'dd/MM/yyyy')}
                           </td>
                           <td className="py-3 px-4 text-sm capitalize">{bill.responsibility}</td>
                           <td className="py-3 px-4 text-sm">
                             {getStatusBadge(bill.status)}
+                          </td>
+                          <td className="py-3 px-4 text-sm">
+                            {bill.is_recurring ? 'Sim' : 'Não'}
                           </td>
                           <td className="py-2 px-4 text-right">
                             <Select 
                               defaultValue={bill.status}
                               onValueChange={(value) => handleChangeStatus(
                                 bill.id, 
-                                value as 'pending' | 'paid' | 'late' | 'upcoming'
+                                value as 'pending' | 'paid' | 'overdue' | 'upcoming'
                               )}
                             >
                               <SelectTrigger className="w-28 h-8">
@@ -437,7 +520,7 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
                               <SelectContent>
                                 <SelectItem value="pending">Pendente</SelectItem>
                                 <SelectItem value="paid">Pago</SelectItem>
-                                <SelectItem value="late">Atrasado</SelectItem>
+                                <SelectItem value="overdue">Atrasado</SelectItem>
                                 <SelectItem value="upcoming">Próximo</SelectItem>
                               </SelectContent>
                             </Select>

@@ -1,17 +1,20 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/context/AuthContext';
 
 type CategoriesListProps = {
   isActive: boolean;
 };
 
 type Category = {
-  id: number;
+  id: string;
   name: string;
 };
 
 const CategoriesList = ({ isActive }: CategoriesListProps) => {
+  const { user } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showNewCategoryForm, setShowNewCategoryForm] = useState(false);
@@ -20,20 +23,24 @@ const CategoriesList = ({ isActive }: CategoriesListProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (isActive) {
+    if (isActive && user) {
       fetchCategories();
     }
-  }, [isActive]);
+  }, [isActive, user]);
 
   const fetchCategories = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:3000/api/categories');
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .order('name');
+        
+      if (error) {
+        throw error;
       }
-      const data = await response.json();
-      setCategories(data);
+      
+      setCategories(data || []);
     } catch (error) {
       console.error('Erro ao buscar categorias:', error);
       toast.error('Erro ao carregar categorias');
@@ -42,33 +49,39 @@ const CategoriesList = ({ isActive }: CategoriesListProps) => {
     }
   };
 
-  const handleDeleteCategory = async (categoryId: number) => {
+  const handleDeleteCategory = async (categoryId: string) => {
     if (!confirm('Tem certeza que deseja excluir esta categoria?')) {
       return;
     }
 
     try {
-      const response = await fetch(`http://localhost:3000/api/categories/${categoryId}`, {
-        method: 'DELETE'
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Erro ao excluir categoria');
+      const { error } = await supabase
+        .from('categories')
+        .delete()
+        .eq('id', categoryId);
+        
+      if (error) {
+        throw error;
       }
 
       setCategories(categories.filter(cat => cat.id !== categoryId));
       toast.success('Categoria excluída com sucesso');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao excluir categoria:', error);
-      toast.error('Erro ao excluir categoria');
+      
+      // Verificar se o erro é devido a restrições de chave estrangeira
+      if (error.code === '23503') {
+        toast.error('Esta categoria está em uso e não pode ser excluída');
+      } else {
+        toast.error('Erro ao excluir categoria');
+      }
     }
   };
 
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!newCategoryName.trim()) {
+    if (!newCategoryName.trim() || !user) {
       setNewCategoryError('Nome da categoria é obrigatório');
       return;
     }
@@ -76,21 +89,20 @@ const CategoriesList = ({ isActive }: CategoriesListProps) => {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('http://localhost:3000/api/categories', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ name: newCategoryName.trim() })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Erro ao adicionar categoria');
+      const { data, error } = await supabase
+        .from('categories')
+        .insert({ 
+          name: newCategoryName.trim(),
+          user_id: user.id
+        })
+        .select()
+        .single();
+        
+      if (error) {
+        throw error;
       }
 
-      const newCategory = await response.json();
-      setCategories([...categories, newCategory]);
+      setCategories([...categories, data]);
       setNewCategoryName('');
       setShowNewCategoryForm(false);
       toast.success('Categoria adicionada com sucesso');

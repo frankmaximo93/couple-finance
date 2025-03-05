@@ -1,16 +1,18 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/context/AuthContext';
 
 type TransactionsListProps = {
   isActive: boolean;
 };
 
 type Transaction = {
-  id: number;
+  id: string;
   description: string;
   amount: number;
-  category_id: number;
+  category_id: string;
   category_name?: string;
   date: string;
   type: string;
@@ -20,43 +22,53 @@ type Transaction = {
   due_date?: string;
   split_expense?: boolean;
   paid_by?: string;
+  status: 'pending' | 'paid' | 'overdue';
+  is_recurring: boolean;
 };
 
 const TransactionsList = ({ isActive }: TransactionsListProps) => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [categories, setCategories] = useState<{[key: number]: string}>({});
+  const [categories, setCategories] = useState<{[key: string]: string}>({});
+  const { user } = useAuth();
 
   useEffect(() => {
-    if (isActive) {
+    if (isActive && user) {
       fetchData();
     }
-  }, [isActive]);
+  }, [isActive, user]);
 
   const fetchData = async () => {
     setIsLoading(true);
     try {
       // Fetch categories and transactions in parallel
       const [categoriesResponse, transactionsResponse] = await Promise.all([
-        fetch('http://localhost:3000/api/categories'),
-        fetch('http://localhost:3000/api/transactions')
+        supabase
+          .from('categories')
+          .select('id, name')
+          .order('name'),
+        supabase
+          .from('transactions')
+          .select('*')
+          .order('date', { ascending: false })
       ]);
 
-      if (!categoriesResponse.ok || !transactionsResponse.ok) {
-        throw new Error('Erro ao buscar dados');
+      if (categoriesResponse.error) {
+        throw new Error(categoriesResponse.error.message);
       }
 
-      const categoriesData = await categoriesResponse.json();
-      const transactionsData = await transactionsResponse.json();
+      if (transactionsResponse.error) {
+        throw new Error(transactionsResponse.error.message);
+      }
 
       // Create a category lookup map
-      const categoryMap: {[key: number]: string} = {};
-      categoriesData.forEach((cat: {id: number, name: string}) => {
+      const categoryMap: {[key: string]: string} = {};
+      categoriesResponse.data.forEach((cat: {id: string, name: string}) => {
         categoryMap[cat.id] = cat.name;
       });
 
       setCategories(categoryMap);
-      setTransactions(transactionsData);
+      setTransactions(transactionsResponse.data);
     } catch (error) {
       console.error('Erro ao buscar dados:', error);
       toast.error('Erro ao carregar transações');
@@ -83,6 +95,15 @@ const TransactionsList = ({ isActive }: TransactionsListProps) => {
   const getInstallmentsLabel = (transaction: Transaction) => {
     if (!transaction.payment_method || transaction.payment_method === 'cash') return '';
     return `${transaction.installments}x`;
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'paid': return 'Pago';
+      case 'pending': return 'Pendente';
+      case 'overdue': return 'Atrasado';
+      default: return status;
+    }
   };
 
   const getSplitInfo = (transaction: Transaction) => {
@@ -120,8 +141,10 @@ const TransactionsList = ({ isActive }: TransactionsListProps) => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pagamento</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Resp.</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Divisão</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Recorrente</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -158,11 +181,25 @@ const TransactionsList = ({ isActive }: TransactionsListProps) => {
                           </span>
                         )}
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          transaction.status === 'paid' 
+                            ? 'bg-green-100 text-green-800' 
+                            : transaction.status === 'overdue'
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {getStatusLabel(transaction.status)}
+                        </span>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         <span className="capitalize">{transaction.responsibility}</span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         {getSplitInfo(transaction)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {transaction.is_recurring ? 'Sim' : 'Não'}
                       </td>
                     </tr>
                   ))}

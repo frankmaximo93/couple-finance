@@ -4,6 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { Progress } from './ui/progress';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/context/AuthContext';
+import { toast } from 'sonner';
 
 type WalletsProps = {
   isActive: boolean;
@@ -34,92 +37,185 @@ type WalletData = {
 };
 
 type DebtInfo = {
+  id: string;
   amount: number;
   owedTo: 'franklin' | 'michele';
+  owed_by: 'franklin' | 'michele';
+  owed_to: 'franklin' | 'michele';
   description: string;
+  is_paid: boolean;
 };
 
 const Wallets = ({ isActive }: WalletsProps) => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('franklin');
   const [wallets, setWallets] = useState<Record<string, WalletData>>({});
   const [debts, setDebts] = useState<DebtInfo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (isActive) {
+    if (isActive && user) {
       fetchWalletData();
     }
-  }, [isActive]);
+  }, [isActive, user]);
 
   const fetchWalletData = async () => {
     setIsLoading(true);
     
     try {
-      // Simulando dados de carteiras e transações
-      // Normalmente, isso viria da API
+      // Fetch debts
+      const { data: debtsData, error: debtsError } = await supabase
+        .from('debts')
+        .select('*, transactions(description)')
+        .order('created_at', { ascending: false });
+        
+      if (debtsError) throw debtsError;
       
-      const mockWallets: Record<string, WalletData> = {
-        franklin: {
-          owner: 'Franklin',
-          balance: 3750.45,
-          income: 5000.00,
-          expenses: 1249.55,
-          bills: [
-            { description: 'Aluguel', amount: 800.00, dueDate: '2025-03-15', status: 'pending' },
-            { description: 'Internet', amount: 120.00, dueDate: '2025-03-10', status: 'paid' },
-            { description: 'Celular', amount: 89.90, dueDate: '2025-03-05', status: 'pending' }
-          ],
-          categories: [
-            { name: 'Alimentação', value: 450, fill: '#FF8042' },
-            { name: 'Transporte', value: 300, fill: '#00C49F' },
-            { name: 'Lazer', value: 200, fill: '#FFBB28' },
-            { name: 'Outros', value: 299.55, fill: '#0088FE' }
-          ]
-        },
-        michele: {
-          owner: 'Michele',
-          balance: 4230.75,
-          income: 5500.00,
-          expenses: 1269.25,
-          bills: [
-            { description: 'Academia', amount: 120.00, dueDate: '2025-03-15', status: 'pending' },
-            { description: 'Streaming', amount: 55.90, dueDate: '2025-03-20', status: 'pending' },
-            { description: 'Seguro', amount: 180.00, dueDate: '2025-03-05', status: 'paid' }
-          ],
-          categories: [
-            { name: 'Alimentação', value: 380, fill: '#FF8042' },
-            { name: 'Beleza', value: 420, fill: '#FFBB28' },
-            { name: 'Transporte', value: 250, fill: '#00C49F' },
-            { name: 'Outros', value: 219.25, fill: '#0088FE' }
-          ]
-        }
-      };
+      // Fetch transactions for wallet summary
+      const { data: transactionsData, error: transactionsError } = await supabase
+        .from('transactions')
+        .select('*')
+        .order('date', { ascending: false });
+        
+      if (transactionsError) throw transactionsError;
+      
+      // Fetch categories for spending breakdown
+      const { data: categoriesData, error: categoriesError } = await supabase
+        .from('categories')
+        .select('id, name');
+        
+      if (categoriesError) throw categoriesError;
+      
+      // Create lookup map for categories
+      const categoriesMap: Record<string, string> = {};
+      categoriesData.forEach((cat: any) => {
+        categoriesMap[cat.id] = cat.name;
+      });
 
-      // Simulando dados de dívidas entre o casal
-      const mockDebts: DebtInfo[] = [
-        { amount: 278.50, owedTo: 'michele', description: 'Compras no supermercado (12/02)' },
-        { amount: 156.00, owedTo: 'michele', description: 'Farmácia (18/02)' },
-        { amount: 95.00, owedTo: 'franklin', description: 'Contas da casa (01/03)' }
-      ];
-
-      setWallets(mockWallets);
-      setDebts(mockDebts);
+      // Process transactions data to build wallets
+      const processedDebts = debtsData.map((debt: any) => ({
+        id: debt.id,
+        amount: debt.amount,
+        owedTo: debt.owed_to,
+        owed_by: debt.owed_by,
+        owed_to: debt.owed_to,
+        description: debt.transactions?.description || 'Dívida',
+        is_paid: debt.is_paid
+      }));
+      
+      // Build wallets data
+      const franklinWallet = buildWalletData('franklin', transactionsData, categoriesMap);
+      const micheleWallet = buildWalletData('michele', transactionsData, categoriesMap);
+      
+      setWallets({
+        franklin: franklinWallet,
+        michele: micheleWallet
+      });
+      
+      setDebts(processedDebts);
     } catch (error) {
       console.error('Erro ao carregar dados das carteiras:', error);
+      toast.error('Erro ao carregar dados financeiros');
     } finally {
       setIsLoading(false);
     }
   };
 
+  const buildWalletData = (
+    owner: string, 
+    transactions: any[], 
+    categoriesMap: Record<string, string>
+  ): WalletData => {
+    // Filter transactions for this owner
+    const ownerTransactions = transactions.filter(
+      t => t.responsibility === owner || t.responsibility === 'casal'
+    );
+    
+    // Calculate financial summary
+    const income = ownerTransactions
+      .filter(t => t.type === 'income')
+      .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+      
+    const expenses = ownerTransactions
+      .filter(t => t.type === 'expense')
+      .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+      
+    const balance = income - expenses;
+    
+    // Calculate spending by category
+    const categorySpending: Record<string, number> = {};
+    ownerTransactions
+      .filter(t => t.type === 'expense')
+      .forEach(t => {
+        const categoryId = t.category_id;
+        if (categoryId) {
+          if (!categorySpending[categoryId]) {
+            categorySpending[categoryId] = 0;
+          }
+          categorySpending[categoryId] += parseFloat(t.amount);
+        }
+      });
+    
+    // Format category data for chart
+    const colors = ['#FF8042', '#00C49F', '#FFBB28', '#0088FE', '#8884d8', '#82ca9d'];
+    const categories = Object.entries(categorySpending).map(([catId, value], index) => ({
+      name: categoriesMap[catId] || 'Outros',
+      value,
+      fill: colors[index % colors.length]
+    }));
+    
+    // Get pending bills
+    const bills = ownerTransactions
+      .filter(t => t.type === 'expense' && 
+        (t.status === 'pending' || t.status === 'overdue' || 
+        (t.payment_method === 'credit' && t.status !== 'paid')))
+      .map(t => ({
+        description: t.description,
+        amount: parseFloat(t.amount),
+        dueDate: t.due_date || t.date,
+        status: t.status as BillStatus
+      }));
+    
+    return {
+      owner: owner === 'franklin' ? 'Franklin' : 'Michele',
+      balance,
+      income,
+      expenses,
+      bills,
+      categories
+    };
+  };
+
+  const handlePayDebt = async (debtId: string) => {
+    try {
+      const { error } = await supabase
+        .from('debts')
+        .update({ is_paid: true })
+        .eq('id', debtId);
+        
+      if (error) throw error;
+      
+      // Update local state
+      setDebts(debts.map(debt => 
+        debt.id === debtId ? { ...debt, is_paid: true } : debt
+      ));
+      
+      toast.success('Dívida marcada como paga!');
+    } catch (error) {
+      console.error('Erro ao pagar dívida:', error);
+      toast.error('Erro ao atualizar status da dívida');
+    }
+  };
+
   const getTotalOwedByPerson = (person: 'franklin' | 'michele') => {
     return debts
-      .filter(debt => debt.owedTo !== person)
+      .filter(debt => debt.owed_by === person && !debt.is_paid)
       .reduce((total, debt) => total + debt.amount, 0);
   };
 
   const getTotalOwedToPerson = (person: 'franklin' | 'michele') => {
     return debts
-      .filter(debt => debt.owedTo === person)
+      .filter(debt => debt.owed_to === person && !debt.is_paid)
       .reduce((total, debt) => total + debt.amount, 0);
   };
 
@@ -199,9 +295,15 @@ const Wallets = ({ isActive }: WalletsProps) => {
                       <div className="mb-6">
                         <div className="flex justify-between mb-1">
                           <span className="text-sm text-gray-500">Gastos vs. Receitas</span>
-                          <span className="text-sm font-medium">{Math.round((wallet.expenses / wallet.income) * 100)}%</span>
+                          <span className="text-sm font-medium">
+                            {wallet.income > 0 ? Math.round((wallet.expenses / wallet.income) * 100) : 0}%
+                          </span>
                         </div>
-                        <Progress value={(wallet.expenses / wallet.income) * 100} className="h-2 bg-gray-200" indicatorClassName="bg-blue-500" />
+                        <Progress 
+                          value={wallet.income > 0 ? (wallet.expenses / wallet.income) * 100 : 0} 
+                          className="h-2 bg-gray-200" 
+                          indicatorClassName="bg-blue-500" 
+                        />
                       </div>
                       <div>
                         <p className="text-sm text-gray-500 mb-1">Consumo total</p>
@@ -231,21 +333,37 @@ const Wallets = ({ isActive }: WalletsProps) => {
                       <div className="mt-2 text-sm">
                         <p className="text-gray-500">Detalhes:</p>
                         <ul className="mt-1 space-y-1">
-                          {debts.map((debt, index) => {
-                            if (debt.owedTo === walletKey) {
+                          {debts.filter(debt => !debt.is_paid).map((debt, index) => {
+                            if (debt.owed_to === walletKey) {
                               return (
-                                <li key={index} className="text-finance-income">
-                                  <span>Receber de {debt.owedTo === 'franklin' ? 'Michele' : 'Franklim'}: </span>
-                                  <span className="font-medium">{formatCurrency(debt.amount)}</span>
-                                  <span className="block text-xs text-gray-500">{debt.description}</span>
+                                <li key={index} className="text-finance-income flex justify-between items-center">
+                                  <div>
+                                    <span>Receber de {debt.owed_by === 'franklin' ? 'Franklim' : 'Michele'}: </span>
+                                    <span className="font-medium">{formatCurrency(debt.amount)}</span>
+                                    <span className="block text-xs text-gray-500">{debt.description}</span>
+                                  </div>
+                                  <button 
+                                    onClick={() => handlePayDebt(debt.id)}
+                                    className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded hover:bg-green-200"
+                                  >
+                                    Marcar Pago
+                                  </button>
                                 </li>
                               );
-                            } else if (debt.owedTo !== walletKey) {
+                            } else if (debt.owed_by === walletKey) {
                               return (
-                                <li key={index} className="text-finance-expense">
-                                  <span>Pagar para {debt.owedTo === 'michele' ? 'Michele' : 'Franklim'}: </span>
-                                  <span className="font-medium">{formatCurrency(debt.amount)}</span>
-                                  <span className="block text-xs text-gray-500">{debt.description}</span>
+                                <li key={index} className="text-finance-expense flex justify-between items-center">
+                                  <div>
+                                    <span>Pagar para {debt.owed_to === 'michele' ? 'Michele' : 'Franklim'}: </span>
+                                    <span className="font-medium">{formatCurrency(debt.amount)}</span>
+                                    <span className="block text-xs text-gray-500">{debt.description}</span>
+                                  </div>
+                                  <button 
+                                    onClick={() => handlePayDebt(debt.id)}
+                                    className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200"
+                                  >
+                                    Marcar Pago
+                                  </button>
                                 </li>
                               );
                             }
@@ -264,27 +382,33 @@ const Wallets = ({ isActive }: WalletsProps) => {
                     </CardHeader>
                     <CardContent className="flex justify-center">
                       <div className="h-[300px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={wallet.categories}
-                              cx="50%"
-                              cy="50%"
-                              labelLine={false}
-                              outerRadius={80}
-                              fill="#8884d8"
-                              dataKey="value"
-                              nameKey="name"
-                              label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                            >
-                              {wallet.categories.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.fill} />
-                              ))}
-                            </Pie>
-                            <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                            <Legend />
-                          </PieChart>
-                        </ResponsiveContainer>
+                        {wallet.categories.length > 0 ? (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={wallet.categories}
+                                cx="50%"
+                                cy="50%"
+                                labelLine={false}
+                                outerRadius={80}
+                                fill="#8884d8"
+                                dataKey="value"
+                                nameKey="name"
+                                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                              >
+                                {wallet.categories.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={entry.fill} />
+                                ))}
+                              </Pie>
+                              <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                              <Legend />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <div className="flex items-center justify-center h-full text-gray-500">
+                            Sem despesas registradas
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>

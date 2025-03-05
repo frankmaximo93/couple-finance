@@ -15,17 +15,22 @@ import { Button } from './ui/button';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { CalendarIcon } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/context/AuthContext';
+import { Switch } from './ui/switch';
+import { Label } from './ui/label';
 
 type TransactionFormProps = {
   isActive: boolean;
 };
 
 type Category = {
-  id: number;
+  id: string;
   name: string;
 };
 
 const TransactionForm = ({ isActive }: TransactionFormProps) => {
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     description: '',
     amount: '',
@@ -37,7 +42,9 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
     installments: '1',      // número de parcelas
     due_date: '',           // data de vencimento
     split_expense: false,   // se a despesa é compartilhada
-    paid_by: ''             // quem pagou a despesa compartilhada
+    paid_by: '',            // quem pagou a despesa compartilhada
+    status: 'pending',      // status da transação (pendente, pago, atrasado)
+    is_recurring: false     // indica se é uma despesa fixa/recorrente
   });
   
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -47,7 +54,7 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
   const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
   
   useEffect(() => {
-    if (isActive) {
+    if (isActive && user) {
       fetchCategories();
       
       // Set default date to today
@@ -58,16 +65,20 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
         due_date: today
       }));
     }
-  }, [isActive]);
+  }, [isActive, user]);
   
   const fetchCategories = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/categories');
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      const { data, error } = await supabase
+        .from('categories')
+        .select('id, name')
+        .order('name');
+        
+      if (error) {
+        throw error;
       }
-      const data = await response.json();
-      setCategories(data);
+      
+      setCategories(data || []);
     } catch (error) {
       console.error('Erro ao buscar categorias:', error);
       toast.error('Não foi possível carregar as categorias');
@@ -145,6 +156,13 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
     }));
   };
 
+  const handleSwitchChange = (name: string, checked: boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      [name]: checked
+    }));
+  };
+
   const handleDueDateSelect = (date: Date | undefined) => {
     setDueDate(date);
     if (date) {
@@ -202,18 +220,41 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
     return Object.keys(newErrors).length === 0;
   };
   
+  const createDebtRecord = async (transactionId: string, amount: number, paidBy: string) => {
+    const owedBy = paidBy === 'franklin' ? 'michele' : 'franklin';
+    const halfAmount = amount / 2;
+    
+    try {
+      const { error } = await supabase
+        .from('debts')
+        .insert({
+          transaction_id: transactionId,
+          owed_by: owedBy,
+          owed_to: paidBy,
+          amount: halfAmount,
+          is_paid: false
+        });
+        
+      if (error) throw error;
+    } catch (error) {
+      console.error('Erro ao criar registro de dívida:', error);
+      // Não impede o fluxo principal se houver erro na criação de dívida
+    }
+  };
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validate()) return;
+    if (!validate() || !user) return;
     
     setIsSubmitting(true);
     
     try {
       const transactionData = {
+        user_id: user.id,
         description: formData.description,
         amount: parseFloat(formData.amount),
-        category_id: parseInt(formData.category_id),
+        category_id: formData.category_id,
         date: formData.date,
         type: formData.type,
         responsibility: formData.responsibility,
@@ -221,20 +262,24 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
         installments: parseInt(formData.installments),
         due_date: formData.due_date,
         split_expense: formData.split_expense,
-        paid_by: formData.paid_by
+        paid_by: formData.paid_by,
+        status: formData.status,
+        is_recurring: formData.is_recurring
       };
 
-      const response = await fetch('http://localhost:3000/api/transactions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(transactionData)
-      });
+      const { data, error } = await supabase
+        .from('transactions')
+        .insert(transactionData)
+        .select()
+        .single();
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Erro ao salvar transação');
+      if (error) {
+        throw error;
+      }
+      
+      // Se for uma despesa compartilhada, criar registro de dívida
+      if (data && formData.split_expense && formData.paid_by) {
+        await createDebtRecord(data.id, parseFloat(formData.amount), formData.paid_by);
       }
       
       toast.success('Transação salva com sucesso!');
@@ -251,14 +296,16 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
         installments: '1',
         due_date: new Date().toISOString().split('T')[0],
         split_expense: false,
-        paid_by: ''
+        paid_by: '',
+        status: 'pending',
+        is_recurring: false
       });
       setDueDate(undefined);
       setShowSplitOptions(false);
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao salvar transação:', error);
-      toast.error('Erro ao salvar transação');
+      toast.error('Erro ao salvar transação: ' + (error.message || 'Erro desconhecido'));
     } finally {
       setIsSubmitting(false);
     }
@@ -360,7 +407,7 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
                 </SelectTrigger>
                 <SelectContent>
                   {categories.map(category => (
-                    <SelectItem key={category.id} value={category.id.toString()}>{category.name}</SelectItem>
+                    <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -391,7 +438,6 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
               )}
             </div>
 
-            {/* Início dos novos campos */}
             <div className="space-y-2">
               <label htmlFor="payment_method" className="block text-sm font-medium text-gray-700">
                 Método de Pagamento
@@ -463,6 +509,36 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
               </>
             )}
 
+            <div className="space-y-2">
+              <label htmlFor="status" className="block text-sm font-medium text-gray-700">
+                Status
+              </label>
+              <Select
+                value={formData.status}
+                onValueChange={(value) => handleSelectChange('status', value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pendente</SelectItem>
+                  <SelectItem value="paid">Pago</SelectItem>
+                  <SelectItem value="overdue">Atrasado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2 flex items-center gap-2">
+              <Label htmlFor="is_recurring" className="text-sm font-medium text-gray-700">
+                Despesa Fixa/Recorrente
+              </Label>
+              <Switch
+                id="is_recurring"
+                checked={formData.is_recurring}
+                onCheckedChange={(checked) => handleSwitchChange('is_recurring', checked)}
+              />
+            </div>
+
             {/* Opções de divisão de despesa para o casal */}
             {showSplitOptions && (
               <>
@@ -504,7 +580,6 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
                 )}
               </>
             )}
-            {/* Fim dos novos campos */}
           </div>
           
           <div className="pt-4">
