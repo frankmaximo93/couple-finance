@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
@@ -128,8 +129,10 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
           description: bill.description,
           amount: bill.amount,
           due_date: bill.due_date || bill.date,
-          status: (bill.status || 'pending') as BillStatus,
-          responsibility: (bill.responsibility || 'casal') as Responsibility,
+          // Cast the status string to BillStatus type, or use 'pending' as default
+          status: (bill.status as BillStatus) || 'pending',
+          // Cast the responsibility string to Responsibility type, or use 'casal' as default
+          responsibility: (bill.responsibility as Responsibility) || 'casal',
           category: categoryMap[bill.category_id] || 'Outro',
           is_recurring: bill.is_recurring
         }));
@@ -166,8 +169,8 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
         date: format(new Date(), 'yyyy-MM-dd'),
         due_date: format(newBill.dueDate, 'yyyy-MM-dd'),
         type: 'expense',
-        responsibility: newBill.responsibility as 'casal' | 'franklin' | 'michele',
-        status: 'pending',
+        responsibility: newBill.responsibility,
+        status: 'pending' as BillStatus,
         is_recurring: true
       };
       
@@ -187,8 +190,8 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
         description: data.description,
         amount: data.amount,
         due_date: data.due_date,
-        status: data.status,
-        responsibility: data.responsibility,
+        status: data.status as BillStatus,
+        responsibility: data.responsibility as Responsibility,
         category: categoryName,
         is_recurring: data.is_recurring
       };
@@ -214,7 +217,7 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
     }
   };
 
-  const handleChangeStatus = async (id: string, newStatus: 'pending' | 'paid' | 'overdue' | 'upcoming') => {
+  const handleChangeStatus = async (id: string, newStatus: BillStatus) => {
     try {
       const { error } = await supabase
         .from('transactions')
@@ -513,7 +516,7 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
                               defaultValue={bill.status}
                               onValueChange={(value) => handleChangeStatus(
                                 bill.id, 
-                                value as 'pending' | 'paid' | 'overdue' | 'upcoming'
+                                value as BillStatus
                               )}
                             >
                               <SelectTrigger className="w-28 h-8">
