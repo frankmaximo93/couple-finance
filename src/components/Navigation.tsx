@@ -1,5 +1,5 @@
-
 import { useEffect, useState } from 'react';
+import { UsersRound } from 'lucide-react';
 
 type TabProps = {
   activeTab: string;
@@ -17,6 +17,11 @@ const Navigation = ({ activeTab, setActiveTab }: TabProps) => {
     { id: 'wallets-section', label: 'Carteiras' },
     { id: 'reports-section', label: 'Relatórios' },
     { id: 'monthly-bills-section', label: 'Contas do Mês' },
+    {
+      id: 'account-linking-section',
+      label: 'Vincular Contas',
+      icon: <UsersRound className="h-5 w-5" />
+    }
   ];
 
   useEffect(() => {

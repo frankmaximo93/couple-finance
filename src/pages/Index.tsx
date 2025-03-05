@@ -9,6 +9,7 @@ import CategoriesList from '@/components/CategoriesList';
 import Wallets from '@/components/Wallets';
 import Reports from '@/components/Reports';
 import MonthlyBills from '@/components/MonthlyBills';
+import AccountLinking from '@/components/AccountLinking';
 import Footer from '@/components/Footer';
 
 const tabTitles: Record<string, string> = {
@@ -18,7 +19,8 @@ const tabTitles: Record<string, string> = {
   'categories-list-section': 'Categorias',
   'wallets-section': 'Carteiras',
   'reports-section': 'Relatórios',
-  'monthly-bills-section': 'Contas do Mês'
+  'monthly-bills-section': 'Contas do Mês',
+  'account-linking-section': 'Vincular Contas'
 };
 
 const Index = () => {
@@ -42,6 +44,7 @@ const Index = () => {
         <Wallets isActive={activeTab === 'wallets-section'} />
         <Reports isActive={activeTab === 'reports-section'} />
         <MonthlyBills isActive={activeTab === 'monthly-bills-section'} />
+        <AccountLinking isActive={activeTab === 'account-linking-section'} />
       </main>
       
       <Footer />

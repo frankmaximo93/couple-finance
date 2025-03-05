@@ -38,13 +38,13 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
     date: '',
     type: '',
     responsibility: '',
-    payment_method: 'cash', // 'cash' para à vista ou 'credit' para crédito
-    installments: '1',      // número de parcelas
-    due_date: '',           // data de vencimento
-    split_expense: false,   // se a despesa é compartilhada
-    paid_by: '',            // quem pagou a despesa compartilhada
-    status: 'pending',      // status da transação (pendente, pago, atrasado)
-    is_recurring: false     // indica se é uma despesa fixa/recorrente
+    payment_method: 'cash' as 'cash' | 'credit', // Fix: explicitly type as 'cash' | 'credit'
+    installments: '1',      
+    due_date: '',           
+    split_expense: false,   
+    paid_by: '' as 'franklin' | 'michele' | '',   // Fix: explicitly type as allowed values
+    status: 'pending' as 'pending' | 'paid' | 'overdue',      
+    is_recurring: false     
   });
   
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -212,6 +212,7 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
       }
     }
 
+    // Fix: only validate paid_by if split_expense is true
     if (formData.split_expense && !formData.paid_by) {
       newErrors.paid_by = 'É necessário informar quem pagou a despesa compartilhada';
     }
@@ -250,6 +251,7 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
     setIsSubmitting(true);
     
     try {
+      // Fix for paid_by field: if split_expense is false, set paid_by to null
       const transactionData = {
         user_id: user.id,
         description: formData.description,
@@ -262,7 +264,7 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
         installments: parseInt(formData.installments),
         due_date: formData.due_date,
         split_expense: formData.split_expense,
-        paid_by: formData.paid_by,
+        paid_by: formData.split_expense ? formData.paid_by : null,
         status: formData.status,
         is_recurring: formData.is_recurring
       };
@@ -444,7 +446,7 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
               </label>
               <Select
                 value={formData.payment_method}
-                onValueChange={(value) => handleSelectChange('payment_method', value)}
+                onValueChange={(value) => handleSelectChange('payment_method', value as 'cash' | 'credit')}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o Método" />
@@ -515,7 +517,7 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
               </label>
               <Select
                 value={formData.status}
-                onValueChange={(value) => handleSelectChange('status', value)}
+                onValueChange={(value) => handleSelectChange('status', value as 'pending' | 'paid' | 'overdue')}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o Status" />
@@ -563,7 +565,7 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
                     </label>
                     <Select
                       value={formData.paid_by}
-                      onValueChange={(value) => handleSelectChange('paid_by', value)}
+                      onValueChange={(value) => handleSelectChange('paid_by', value as 'franklin' | 'michele')}
                     >
                       <SelectTrigger className={errors.paid_by ? 'border-red-300 bg-red-50' : ''}>
                         <SelectValue placeholder="Selecione quem pagou" />

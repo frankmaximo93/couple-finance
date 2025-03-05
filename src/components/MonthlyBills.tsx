@@ -490,7 +490,9 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
                           <td className="py-3 px-4 text-sm">
                             {format(new Date(bill.due_date), 'dd/MM/yyyy')}
                           </td>
-                          <td className="py-3 px-4 text-sm capitalize">{bill.responsibility}</td>
+                          <td className="py-3 px-4 text-sm capitalize">
+                            {bill.responsibility as 'casal' | 'franklin' | 'michele'}
+                          </td>
                           <td className="py-3 px-4 text-sm">
                             {getStatusBadge(bill.status)}
                           </td>
