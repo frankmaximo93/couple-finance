@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
+import { formatCurrency } from '@/utils/walletUtils';
 
 type ReportsProps = {
   isActive: boolean;
@@ -67,6 +68,13 @@ const Reports = ({ isActive }: ReportsProps) => {
           'casal': { name: 'Casal', value: 0, fill: '#8884d8' }
         };
         
+        // Income breakdown by person
+        const incomeMap: Record<string, { name: string, value: number, fill: string }> = {
+          'franklin': { name: 'Franklin', value: 0, fill: '#4ade80' },
+          'michele': { name: 'Michele', value: 0, fill: '#fb923c' },
+          'casal': { name: 'Casal', value: 0, fill: '#60a5fa' }
+        };
+        
         // Monthly summary (for 6 months back) - we'd need more complex querying here
         // For now, just prepare the structure
         const monthlyData: Record<string, { month: string, receitas: number, despesas: number }> = {};
@@ -91,6 +99,11 @@ const Reports = ({ isActive }: ReportsProps) => {
           if (t.type === 'expense' && t.responsibility && responsibilityMap[t.responsibility]) {
             responsibilityMap[t.responsibility].value += parseFloat(t.amount);
           }
+          
+          // For income breakdown
+          if (t.type === 'income' && t.responsibility && incomeMap[t.responsibility]) {
+            incomeMap[t.responsibility].value += parseFloat(t.amount);
+          }
         });
         
         // Prepare the final data structure
@@ -100,7 +113,8 @@ const Reports = ({ isActive }: ReportsProps) => {
             // For now, we'll leave it empty
           ],
           categoryBreakdown: Object.values(categoryMap),
-          responsibilityDistribution: Object.values(responsibilityMap).filter(r => r.value > 0)
+          responsibilityDistribution: Object.values(responsibilityMap).filter(r => r.value > 0),
+          incomeDistribution: Object.values(incomeMap).filter(r => r.value > 0)
         });
       } else {
         // No data for the selected period
@@ -166,6 +180,7 @@ const Reports = ({ isActive }: ReportsProps) => {
                 <TabsTrigger value="evolucao">Evolução Mensal</TabsTrigger>
                 <TabsTrigger value="categorias">Despesas por Categoria</TabsTrigger>
                 <TabsTrigger value="responsabilidade">Distribuição por Responsabilidade</TabsTrigger>
+                <TabsTrigger value="receitas">Relatório de Receitas</TabsTrigger>
               </TabsList>
               
               <TabsContent value="evolucao" className="space-y-4">
@@ -314,6 +329,64 @@ const Reports = ({ isActive }: ReportsProps) => {
                               <span className="font-medium">Total</span>
                               <span className="font-medium">
                                 R$ {reportsData.responsibilityDistribution.reduce((acc: number, item: any) => acc + item.value, 0).toFixed(2)}
+                              </span>
+                            </li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+              
+              <TabsContent value="receitas">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Relatório de Receitas</CardTitle>
+                    <CardDescription>
+                      Análise de receitas por pessoa
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="h-[300px] flex items-center justify-center">
+                        <ResponsiveContainer width="100%" height={300}>
+                          <PieChart>
+                            <Pie
+                              data={reportsData.incomeDistribution}
+                              cx="50%"
+                              cy="50%"
+                              labelLine={false}
+                              label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                              outerRadius={80}
+                              fill="#8884d8"
+                              dataKey="value"
+                            >
+                              {reportsData.incomeDistribution.map((entry: any, index: number) => (
+                                <Cell key={`cell-${index}`} fill={entry.fill} />
+                              ))}
+                            </Pie>
+                            <Tooltip formatter={(value) => `R$ ${value}`} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div>
+                        <div className="p-4 rounded-lg bg-gray-50">
+                          <h4 className="font-medium text-gray-900 mb-3">Detalhamento das Receitas</h4>
+                          <ul className="space-y-2">
+                            {reportsData.incomeDistribution.map((item: any, index: number) => (
+                              <li key={index} className="flex justify-between items-center">
+                                <div className="flex items-center">
+                                  <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: item.fill }}></div>
+                                  <span>{item.name}</span>
+                                </div>
+                                <span className="font-medium">R$ {item.value.toFixed(2)}</span>
+                              </li>
+                            ))}
+                            <li className="flex justify-between items-center pt-2 border-t border-gray-200 mt-2">
+                              <span className="font-medium">Total</span>
+                              <span className="font-medium">
+                                R$ {reportsData.incomeDistribution.reduce((acc: number, item: any) => acc + item.value, 0).toFixed(2)}
                               </span>
                             </li>
                           </ul>

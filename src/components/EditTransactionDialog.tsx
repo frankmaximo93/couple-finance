@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { 
   Dialog, 
@@ -45,7 +44,7 @@ export type Transaction = {
   due_date?: string;
   split_expense?: boolean;
   paid_by?: string;
-  status: 'pending' | 'paid' | 'overdue';
+  status: 'pending' | 'paid' | 'overdue' | 'to_receive' | 'received';
   is_recurring: boolean;
 };
 
@@ -136,7 +135,6 @@ const EditTransactionDialog = ({
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     
-    // Convert numeric values
     if (name === 'amount' || name === 'installments') {
       setFormData(prev => ({
         ...prev,
@@ -149,7 +147,6 @@ const EditTransactionDialog = ({
       }));
     }
     
-    // Clear error
     if (errors[name]) {
       setErrors(prev => ({
         ...prev,
@@ -157,7 +154,6 @@ const EditTransactionDialog = ({
       }));
     }
 
-    // Show split options when responsibility is 'casal'
     if (name === 'responsibility' && value === 'casal') {
       setShowSplitOptions(true);
     } else if (name === 'responsibility' && value !== 'casal') {
@@ -166,6 +162,13 @@ const EditTransactionDialog = ({
         ...prev,
         split_expense: false,
         paid_by: ''
+      }));
+    }
+    
+    if (name === 'type') {
+      setFormData(prev => ({
+        ...prev,
+        status: value === 'income' ? 'to_receive' : 'pending'
       }));
     }
   };
@@ -176,7 +179,6 @@ const EditTransactionDialog = ({
       [name]: value
     }));
     
-    // Clear error
     if (errors[name]) {
       setErrors(prev => ({
         ...prev,
@@ -184,7 +186,6 @@ const EditTransactionDialog = ({
       }));
     }
 
-    // Additional logic for specific fields
     if (name === 'responsibility' && value === 'casal') {
       setShowSplitOptions(true);
     } else if (name === 'responsibility' && value !== 'casal') {
@@ -193,6 +194,13 @@ const EditTransactionDialog = ({
         ...prev,
         split_expense: false,
         paid_by: ''
+      }));
+    }
+    
+    if (name === 'type') {
+      setFormData(prev => ({
+        ...prev,
+        status: value === 'income' ? 'to_receive' : 'pending'
       }));
     }
   };
@@ -268,7 +276,6 @@ const EditTransactionDialog = ({
   };
   
   const updateDebtRecord = async (transactionId: string, amount: number, paidBy: string, splitExpense: boolean) => {
-    // If transaction is not splitting expenses anymore, delete related debt
     if (!splitExpense) {
       try {
         const { error } = await supabase
@@ -288,7 +295,6 @@ const EditTransactionDialog = ({
     const halfAmount = amount / 2;
     
     try {
-      // Check if debt record exists
       const { data, error } = await supabase
         .from('debts')
         .select('*')
@@ -300,7 +306,6 @@ const EditTransactionDialog = ({
       }
       
       if (data && data.length > 0) {
-        // Update existing debt
         const { error: updateError } = await supabase
           .from('debts')
           .update({
@@ -313,7 +318,6 @@ const EditTransactionDialog = ({
           
         if (updateError) console.error('Error updating debt record:', updateError);
       } else {
-        // Create new debt
         const { error: insertError } = await supabase
           .from('debts')
           .insert({
@@ -364,11 +368,9 @@ const EditTransactionDialog = ({
         throw error;
       }
       
-      // Update or create debt record if this is a split expense
       if (formData.split_expense && formData.paid_by) {
         await updateDebtRecord(formData.id, formData.amount, formData.paid_by, formData.split_expense);
       } else {
-        // If not split expense, ensure any related debt is removed
         await updateDebtRecord(formData.id, 0, '', false);
       }
       
@@ -567,15 +569,24 @@ const EditTransactionDialog = ({
               <Label htmlFor="status">Status</Label>
               <Select
                 value={formData.status}
-                onValueChange={(value) => handleSelectChange('status', value as 'pending' | 'paid' | 'overdue')}
+                onValueChange={(value) => handleSelectChange('status', value as 'pending' | 'paid' | 'overdue' | 'to_receive' | 'received')}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="pending">Pendente</SelectItem>
-                  <SelectItem value="paid">Pago</SelectItem>
-                  <SelectItem value="overdue">Atrasado</SelectItem>
+                  {formData.type === 'income' ? (
+                    <>
+                      <SelectItem value="to_receive">A Receber</SelectItem>
+                      <SelectItem value="received">Recebido</SelectItem>
+                    </>
+                  ) : (
+                    <>
+                      <SelectItem value="pending">Pendente</SelectItem>
+                      <SelectItem value="paid">Pago</SelectItem>
+                      <SelectItem value="overdue">Atrasado</SelectItem>
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -589,7 +600,6 @@ const EditTransactionDialog = ({
               <Label htmlFor="is_recurring">Despesa Fixa/Recorrente</Label>
             </div>
 
-            {/* Opções de divisão para despesas do casal */}
             {showSplitOptions && (
               <>
                 <div className="space-y-2 flex items-center gap-2">

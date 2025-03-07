@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Input } from './ui/input';
@@ -38,13 +37,13 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
     date: '',
     type: '',
     responsibility: '',
-    payment_method: 'cash' as 'cash' | 'credit', // Fix: explicitly type as 'cash' | 'credit'
-    installments: '1',      
-    due_date: '',           
-    split_expense: false,   
-    paid_by: '' as 'franklin' | 'michele' | '',   // Fix: explicitly type as allowed values
-    status: 'pending' as 'pending' | 'paid' | 'overdue',      
-    is_recurring: false     
+    payment_method: 'cash' as 'cash' | 'credit',
+    installments: '1',
+    due_date: '',
+    split_expense: false,
+    paid_by: '' as 'franklin' | 'michele' | '',
+    status: 'pending' as 'pending' | 'paid' | 'overdue' | 'to_receive' | 'received',
+    is_recurring: false
   });
   
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -57,7 +56,6 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
     if (isActive && user) {
       fetchCategories();
       
-      // Set default date to today
       const today = new Date().toISOString().split('T')[0];
       setFormData(prev => ({
         ...prev,
@@ -92,7 +90,6 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
       [name]: value
     }));
     
-    // Clear error when user starts typing
     if (errors[name]) {
       setErrors(prev => ({
         ...prev,
@@ -100,7 +97,6 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
       }));
     }
 
-    // Mostrar opções de divisão quando responsabilidade for 'casal'
     if (name === 'responsibility' && value === 'casal') {
       setShowSplitOptions(true);
     } else if (name === 'responsibility' && value !== 'casal') {
@@ -112,11 +108,17 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
       }));
     }
 
-    // Habilitar campos de crédito quando método de pagamento for crédito
     if (name === 'payment_method' && value === 'credit') {
       setFormData(prev => ({
         ...prev,
         installments: '1'
+      }));
+    }
+
+    if (name === 'type') {
+      setFormData(prev => ({
+        ...prev,
+        status: value === 'income' ? 'to_receive' : 'pending'
       }));
     }
   };
@@ -127,7 +129,6 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
       [name]: value
     }));
     
-    // Clear error
     if (errors[name]) {
       setErrors(prev => ({
         ...prev,
@@ -135,7 +136,6 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
       }));
     }
 
-    // Lógica adicional para campos específicos
     if (name === 'responsibility' && value === 'casal') {
       setShowSplitOptions(true);
     } else if (name === 'responsibility' && value !== 'casal') {
@@ -144,6 +144,13 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
         ...prev,
         split_expense: false,
         paid_by: ''
+      }));
+    }
+
+    if (name === 'type') {
+      setFormData(prev => ({
+        ...prev,
+        status: value === 'income' ? 'to_receive' : 'pending'
       }));
     }
   };
@@ -212,7 +219,6 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
       }
     }
 
-    // Fix: only validate paid_by if split_expense is true
     if (formData.split_expense && !formData.paid_by) {
       newErrors.paid_by = 'É necessário informar quem pagou a despesa compartilhada';
     }
@@ -239,7 +245,6 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
       if (error) throw error;
     } catch (error) {
       console.error('Erro ao criar registro de dívida:', error);
-      // Não impede o fluxo principal se houver erro na criação de dívida
     }
   };
   
@@ -251,7 +256,6 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
     setIsSubmitting(true);
     
     try {
-      // Fix for paid_by field: if split_expense is false, set paid_by to null
       const transactionData = {
         user_id: user.id,
         description: formData.description,
@@ -279,14 +283,12 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
         throw error;
       }
       
-      // Se for uma despesa compartilhada, criar registro de dívida
       if (data && formData.split_expense && formData.paid_by) {
         await createDebtRecord(data.id, parseFloat(formData.amount), formData.paid_by);
       }
       
       toast.success('Transação salva com sucesso!');
       
-      // Reset form
       setFormData({
         description: '',
         amount: '',
@@ -517,15 +519,24 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
               </label>
               <Select
                 value={formData.status}
-                onValueChange={(value) => handleSelectChange('status', value as 'pending' | 'paid' | 'overdue')}
+                onValueChange={(value) => handleSelectChange('status', value as 'pending' | 'paid' | 'overdue' | 'to_receive' | 'received')}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="pending">Pendente</SelectItem>
-                  <SelectItem value="paid">Pago</SelectItem>
-                  <SelectItem value="overdue">Atrasado</SelectItem>
+                  {formData.type === 'income' ? (
+                    <>
+                      <SelectItem value="to_receive">A Receber</SelectItem>
+                      <SelectItem value="received">Recebido</SelectItem>
+                    </>
+                  ) : (
+                    <>
+                      <SelectItem value="pending">Pendente</SelectItem>
+                      <SelectItem value="paid">Pago</SelectItem>
+                      <SelectItem value="overdue">Atrasado</SelectItem>
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -541,7 +552,6 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
               />
             </div>
 
-            {/* Opções de divisão de despesa para o casal */}
             {showSplitOptions && (
               <>
                 <div className="space-y-2 flex items-center">

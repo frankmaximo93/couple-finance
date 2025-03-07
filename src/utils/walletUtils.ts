@@ -1,7 +1,7 @@
 
 import { WalletPerson } from '@/integrations/supabase/client';
 
-export type BillStatus = 'pending' | 'paid' | 'overdue';
+export type BillStatus = 'pending' | 'paid' | 'overdue' | 'to_receive' | 'received';
 
 export type Bill = {
   description: string;
@@ -74,6 +74,21 @@ export const buildWalletData = (
       if (transaction.type === 'income') {
         wallet.income += parseFloat(transaction.amount);
         wallet.balance += parseFloat(transaction.amount);
+        
+        // Add pending incomes to bills if they're not received yet
+        if (transaction.status === 'to_receive') {
+          const billKey = `${transaction.description}-${transaction.due_date || 'no-date'}`;
+          
+          if (!billsMap[billKey]) {
+            billsMap[billKey] = {
+              description: transaction.description,
+              amount: parseFloat(transaction.amount),
+              dueDate: transaction.due_date || new Date().toISOString().split('T')[0],
+              status: transaction.status || 'to_receive',
+              id: transaction.id // Now optional in the type
+            };
+          }
+        }
       } else if (transaction.type === 'expense') {
         wallet.expenses += parseFloat(transaction.amount);
         wallet.balance -= parseFloat(transaction.amount);
