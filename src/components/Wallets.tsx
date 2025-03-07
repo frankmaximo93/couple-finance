@@ -52,6 +52,7 @@ const Wallets = ({ isActive }: WalletsProps) => {
   const [debts, setDebts] = useState<DebtInfo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [linkedAccounts, setLinkedAccounts] = useState<Array<{ email: string, relationship: string }>>([]);
+  const [showLinkedMessage, setShowLinkedMessage] = useState<boolean>(false);
 
   useEffect(() => {
     if (isActive && user) {
@@ -66,15 +67,18 @@ const Wallets = ({ isActive }: WalletsProps) => {
       
       if (error) {
         console.error('Error fetching linked accounts:', error);
+        toast.error(`Erro ao buscar contas vinculadas: ${error.message}`);
         return;
       }
       
       if (data && Array.isArray(data)) {
         setLinkedAccounts(data);
         console.log('Linked accounts:', data);
+        setShowLinkedMessage(data.length === 0);
       }
     } catch (error) {
       console.error('Error loading linked accounts:', error);
+      toast.error('Erro ao carregar contas vinculadas');
     }
   };
 
@@ -87,26 +91,40 @@ const Wallets = ({ isActive }: WalletsProps) => {
         .select('*, transactions(description)')
         .order('created_at', { ascending: false });
         
-      if (debtsError) throw debtsError;
+      if (debtsError) {
+        console.error('Error fetching debts:', debtsError);
+        toast.error(`Erro ao buscar dívidas: ${debtsError.message}`);
+        throw debtsError;
+      }
       
       const { data: transactionsData, error: transactionsError } = await supabase
         .from('transactions')
         .select('*')
         .order('date', { ascending: false });
         
-      if (transactionsError) throw transactionsError;
+      if (transactionsError) {
+        console.error('Error fetching transactions:', transactionsError);
+        toast.error(`Erro ao buscar transações: ${transactionsError.message}`);
+        throw transactionsError;
+      }
       
       const { data: categoriesData, error: categoriesError } = await supabase
         .from('categories')
         .select('id, name');
         
-      if (categoriesError) throw categoriesError;
+      if (categoriesError) {
+        console.error('Error fetching categories:', categoriesError);
+        toast.error(`Erro ao buscar categorias: ${categoriesError.message}`);
+        throw categoriesError;
+      }
       
       const categoriesMap: Record<string, string> = {};
       categoriesData.forEach((cat: any) => {
         categoriesMap[cat.id] = cat.name;
       });
 
+      console.log('Debts data:', debtsData);
+      
       const processedDebts = debtsData.map((debt: any) => ({
         id: debt.id,
         amount: debt.amount,
@@ -264,7 +282,7 @@ const Wallets = ({ isActive }: WalletsProps) => {
   return (
     <div className="animate-fade-in">
       <div className="glass-card rounded-2xl p-8 shadow-md">
-        {linkedAccounts.length === 0 && (
+        {showLinkedMessage && (
           <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
             <p className="text-yellow-800 text-sm">
               Nenhuma conta vinculada encontrada. Vá para a página de Vincular Contas para compartilhar dados financeiros.

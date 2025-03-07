@@ -38,6 +38,7 @@ const AccountLinking = ({ isActive }: AccountLinkingProps) => {
       
       if (error) {
         console.error('Error fetching linked accounts:', error);
+        toast.error(`Erro ao carregar contas vinculadas: ${error.message}`);
         return;
       }
       
@@ -47,6 +48,7 @@ const AccountLinking = ({ isActive }: AccountLinkingProps) => {
       }
     } catch (error) {
       console.error('Erro ao carregar contas vinculadas:', error);
+      toast.error('Erro ao carregar contas vinculadas');
     }
   };
 
@@ -70,7 +72,7 @@ const AccountLinking = ({ isActive }: AccountLinkingProps) => {
       if (data === true) {
         toast.success(`Conta vinculada com sucesso a ${partnerEmail}`);
         setPartnerEmail('');
-        fetchLinkedAccounts();
+        await fetchLinkedAccounts();
       } else {
         toast.error('Usuário não encontrado ou já está vinculado');
       }
