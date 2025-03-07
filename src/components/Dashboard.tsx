@@ -1,3 +1,4 @@
+
 import { useEffect, useState, useRef } from 'react';
 import Chart from 'chart.js/auto';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +8,8 @@ import { ArrowUpRight, ArrowDownRight, Wallet, PiggyBank, TrendingUp, AlertTrian
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { supabase } from '@/integrations/supabase/client'; 
+import { useAuth } from '@/context/AuthContext';
 
 type DashboardProps = {
   isActive: boolean;
@@ -38,6 +41,7 @@ type Insight = {
 };
 
 const Dashboard = ({ isActive }: DashboardProps) => {
+  const { user } = useAuth();
   const [saldoTotal, setSaldoTotal] = useState<number>(0);
   const [monthlySummary, setMonthlySummary] = useState<MonthlySummary>({
     monthly_income: 0,
@@ -48,55 +52,113 @@ const Dashboard = ({ isActive }: DashboardProps) => {
   const [monthlyTrend, setMonthlyTrend] = useState<any[]>([]);
   const [insights, setInsights] = useState<Insight[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [linkedAccounts, setLinkedAccounts] = useState<Array<{ email: string, relationship: string }>>([]);
   const chartRef = useRef<HTMLCanvasElement>(null);
   const chartInstanceRef = useRef<Chart | null>(null);
 
   useEffect(() => {
-    if (isActive) {
+    if (isActive && user) {
       setIsLoading(true);
+      fetchLinkedAccounts();
       fetchDashboardData();
     }
-  }, [isActive]);
+  }, [isActive, user]);
+
+  const fetchLinkedAccounts = async () => {
+    try {
+      try {
+        const { data, error } = await supabase.rpc('get_linked_users');
+        
+        if (error) {
+          console.error('Error fetching linked accounts:', error);
+          // If RPC function doesn't exist, try to check relationship directly
+          if (error.message.includes('Could not find the function')) {
+            const { data: relationships, error: relError } = await supabase
+              .from('user_relationships')
+              .select('*')
+              .eq('user_id', user.id);
+              
+            if (!relError && relationships && relationships.length > 0) {
+              setLinkedAccounts([
+                { email: 'usuário vinculado', relationship: 'spouse' }
+              ]);
+              return;
+            }
+          }
+        }
+        
+        if (data && Array.isArray(data)) {
+          setLinkedAccounts(data);
+          console.log('Linked accounts for Dashboard:', data);
+        }
+      } catch (error) {
+        console.error('Error with RPC call:', error);
+      }
+    } catch (error) {
+      console.error('Error loading linked accounts:', error);
+    }
+  };
 
   const fetchDashboardData = async () => {
     try {
-      // Fetch real data from API
-      const [saldoResponse, summaryResponse, categoryResponse] = await Promise.all([
-        fetch('http://localhost:3000/api/dashboard/saldo-total'),
-        fetch('http://localhost:3000/api/dashboard/monthly-summary'),
-        fetch('http://localhost:3000/api/dashboard/monthly-category-summary')
-      ]);
-
-      if (!saldoResponse.ok || !summaryResponse.ok || !categoryResponse.ok) {
-        throw new Error('Erro ao buscar dados do dashboard');
+      try {
+        // Try to fetch real data from Supabase
+        const { data: transactionsData, error: transactionsError } = await supabase
+          .from('transactions')
+          .select('*');
+          
+        if (!transactionsError && transactionsData && transactionsData.length > 0) {
+          // Process real transaction data
+          const income = transactionsData
+            .filter((t: any) => t.type === 'income')
+            .reduce((sum: number, t: any) => sum + parseFloat(t.amount), 0);
+            
+          const expense = transactionsData
+            .filter((t: any) => t.type === 'expense')
+            .reduce((sum: number, t: any) => sum + parseFloat(t.amount), 0);
+            
+          setSaldoTotal(income - expense);
+          setMonthlySummary({
+            monthly_income: income,
+            monthly_expense: expense
+          });
+          
+          // Generate insights based on real data
+          generateInsights(income - expense, { monthly_income: income, monthly_expense: expense });
+          return;
+        }
+      } catch (supabaseError) {
+        console.error('Error fetching from Supabase:', supabaseError);
       }
-
-      const saldoData = await saldoResponse.json();
-      const summaryData = await summaryResponse.json();
-      const categoryData = await categoryResponse.json();
-
-      setSaldoTotal(saldoData.saldo_total);
-      setMonthlySummary(summaryData);
-      setCategorySummary(categoryData);
-
-      // Generate mock data for trend visualization
+      
+      // If we get here, use mock data
+      // Generate mock data for demonstration
       generateMockData();
       
-      // Generate insights based on the data
-      generateInsights(saldoData.saldo_total, summaryData);
-      
+      // Generate insights based on the mock data
+      generateInsights(4000, {monthly_income: 8300, monthly_expense: 4300});
     } catch (error) {
       console.error('Erro ao carregar dados do dashboard:', error);
       toast.error('Erro ao carregar dados do dashboard');
       
       // Use mock data for demonstration
       generateMockData();
+      generateInsights(4000, {monthly_income: 8300, monthly_expense: 4300});
     } finally {
       setIsLoading(false);
     }
   };
 
   const generateMockData = () => {
+    // Set mock total balance
+    setSaldoTotal(4000);
+    
+    // Set mock monthly summary
+    setMonthlySummary({
+      monthly_income: 8300,
+      monthly_expense: 4300
+    });
+    
     // Mock data for budget status
     const mockBudgetStatus: BudgetStatus[] = [
       { category: 'Alimentação', budget: 800, spent: 650, percentage: 81.25 },
@@ -105,6 +167,16 @@ const Dashboard = ({ isActive }: DashboardProps) => {
       { category: 'Transporte', budget: 500, spent: 180, percentage: 36 },
     ];
     setBudgetStatus(mockBudgetStatus);
+
+    // Mock data for category summary
+    const mockCategorySummary: CategorySummary[] = [
+      { category: 'Alimentação', income: 0, expense: 650 },
+      { category: 'Despesas Casa', income: 0, expense: 1050 },
+      { category: 'Salário', income: 8300, expense: 0 },
+      { category: 'Lazer', income: 0, expense: 350 },
+      { category: 'Transporte', income: 0, expense: 180 },
+    ];
+    setCategorySummary(mockCategorySummary);
 
     // Mock data for monthly trend
     const mockMonthlyTrend = [
@@ -119,18 +191,18 @@ const Dashboard = ({ isActive }: DashboardProps) => {
   };
 
   const generateInsights = (saldo: number, summary: MonthlySummary) => {
-    const mockInsights: Insight[] = [];
+    const newInsights: Insight[] = [];
     
     // Saldo positivo ou negativo
     if (saldo > 0) {
-      mockInsights.push({
+      newInsights.push({
         type: 'increase',
         title: 'Saldo Positivo',
         description: 'Você tem um saldo positivo este mês. Continue economizando!',
         icon: <TrendingUp className="h-5 w-5 text-green-500" />
       });
     } else {
-      mockInsights.push({
+      newInsights.push({
         type: 'warning',
         title: 'Saldo Negativo',
         description: 'Seu saldo está negativo. Revise seus gastos.',
@@ -141,14 +213,14 @@ const Dashboard = ({ isActive }: DashboardProps) => {
     // Proporção de gastos vs receita
     const proportion = summary.monthly_expense / summary.monthly_income;
     if (proportion > 0.8 && summary.monthly_income > 0) {
-      mockInsights.push({
+      newInsights.push({
         type: 'warning',
         title: 'Gastos Elevados',
         description: `Você está gastando ${(proportion * 100).toFixed(0)}% da sua receita.`,
         icon: <ArrowUpRight className="h-5 w-5 text-amber-500" />
       });
     } else if (proportion < 0.5 && summary.monthly_income > 0) {
-      mockInsights.push({
+      newInsights.push({
         type: 'increase',
         title: 'Economia Eficiente',
         description: `Você está economizando ${((1 - proportion) * 100).toFixed(0)}% da sua receita.`,
@@ -156,7 +228,7 @@ const Dashboard = ({ isActive }: DashboardProps) => {
       });
     }
 
-    setInsights(mockInsights);
+    setInsights(newInsights);
   };
 
   const getSavingsPercentage = () => {
