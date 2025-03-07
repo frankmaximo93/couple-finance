@@ -13,6 +13,9 @@ export const isSessionActive = async () => {
   return !!session;
 };
 
+// Define types for wallet person identifiers
+export type WalletPerson = 'franklin' | 'michele';
+
 // Define types for the RPC functions to help TypeScript understand the return types
 declare module '@supabase/supabase-js' {
   interface SupabaseClient<Database> {

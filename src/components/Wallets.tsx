@@ -120,9 +120,9 @@ const Wallets = ({ isActive }: WalletsProps) => {
           const processedDebts: DebtInfo[] = debtsData.map((debt: any) => ({
             id: debt.id,
             amount: debt.amount,
-            owedTo: debt.owed_to, // Set the camelCase version
-            owed_to: debt.owed_to, // Keep the snake_case version for compatibility
-            owed_by: debt.owed_by,
+            owedTo: debt.owed_to as 'franklin' | 'michele',
+            owed_to: debt.owed_to as 'franklin' | 'michele',
+            owed_by: debt.owed_by as 'franklin' | 'michele',
             description: debt.transactions?.description || 'Dívida',
             is_paid: debt.is_paid
           }));
@@ -178,10 +178,11 @@ const Wallets = ({ isActive }: WalletsProps) => {
       michele: micheleWallet
     });
     
-    // Transform mockDebts to match DebtInfo type
     const typedMockDebts: DebtInfo[] = mockDebts.map(debt => ({
       ...debt,
-      owedTo: debt.owed_to as 'franklin' | 'michele'
+      owedTo: debt.owed_to as 'franklin' | 'michele',
+      owed_to: debt.owed_to as 'franklin' | 'michele',
+      owed_by: debt.owed_by as 'franklin' | 'michele'
     }));
     
     setDebts(typedMockDebts);
