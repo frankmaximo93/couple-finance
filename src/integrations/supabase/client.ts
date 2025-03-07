@@ -25,5 +25,10 @@ declare module '@supabase/supabase-js' {
       fn: 'link_users',
       params: { other_user_email: string; relationship_type: string }
     ): Promise<{ data: boolean; error: Error | null }>;
+    
+    rpc<T = any>(
+      fn: 'calculate_wallet_balance',
+      params: { wallet_owner: string }
+    ): Promise<{ data: { balance: number; income: number; expenses: number }; error: Error | null }>;
   }
 }

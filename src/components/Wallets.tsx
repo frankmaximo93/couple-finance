@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
@@ -117,7 +118,7 @@ const Wallets = ({ isActive }: WalletsProps) => {
         if (debtsError) {
           console.error('Error fetching debts:', debtsError);
         } else if (debtsData && debtsData.length > 0) {
-          const processedDebts = debtsData.map((debt: any) => ({
+          const processedDebts: DebtInfo[] = debtsData.map((debt: any) => ({
             id: debt.id,
             amount: debt.amount,
             owedTo: debt.owed_to,
@@ -528,4 +529,3 @@ const Wallets = ({ isActive }: WalletsProps) => {
 };
 
 export default Wallets;
-

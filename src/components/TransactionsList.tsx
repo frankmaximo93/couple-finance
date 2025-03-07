@@ -3,27 +3,12 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
+import { Button } from './ui/button';
+import { PencilIcon, TrashIcon } from 'lucide-react';
+import EditTransactionDialog, { Transaction } from './EditTransactionDialog';
 
 type TransactionsListProps = {
   isActive: boolean;
-};
-
-type Transaction = {
-  id: string;
-  description: string;
-  amount: number;
-  category_id: string;
-  category_name?: string;
-  date: string;
-  type: string;
-  responsibility: string;
-  payment_method?: 'cash' | 'credit' | null;
-  installments?: number;
-  due_date?: string;
-  split_expense?: boolean;
-  paid_by?: string;
-  status: 'pending' | 'paid' | 'overdue';
-  is_recurring: boolean;
 };
 
 const TransactionsList = ({ isActive }: TransactionsListProps) => {
@@ -32,6 +17,8 @@ const TransactionsList = ({ isActive }: TransactionsListProps) => {
   const [categories, setCategories] = useState<{[key: string]: string}>({});
   const [linkedAccounts, setLinkedAccounts] = useState<Array<{ email: string, relationship: string }>>([]);
   const [showLinkedMessage, setShowLinkedMessage] = useState<boolean>(true);
+  const [editTransaction, setEditTransaction] = useState<Transaction | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -127,6 +114,7 @@ const TransactionsList = ({ isActive }: TransactionsListProps) => {
           description: t.description,
           amount: t.amount,
           category_id: t.category_id,
+          category_name: categoryMap[t.category_id],
           date: t.date,
           type: t.type,
           responsibility: t.responsibility,
@@ -171,6 +159,7 @@ const TransactionsList = ({ isActive }: TransactionsListProps) => {
         description: 'Supermercado',
         amount: 350,
         category_id: 'cat1',
+        category_name: 'Alimentação',
         date: '2025-04-10',
         type: 'expense',
         responsibility: 'franklin',
@@ -187,6 +176,7 @@ const TransactionsList = ({ isActive }: TransactionsListProps) => {
         description: 'Aluguel',
         amount: 1200,
         category_id: 'cat2',
+        category_name: 'Moradia',
         date: '2025-04-05',
         type: 'expense',
         responsibility: 'casal',
@@ -199,6 +189,7 @@ const TransactionsList = ({ isActive }: TransactionsListProps) => {
         description: 'Salário',
         amount: 4500,
         category_id: 'cat5',
+        category_name: 'Salário',
         date: '2025-04-01',
         type: 'income',
         responsibility: 'franklin',
@@ -211,6 +202,7 @@ const TransactionsList = ({ isActive }: TransactionsListProps) => {
         description: 'Salário',
         amount: 3800,
         category_id: 'cat5',
+        category_name: 'Salário',
         date: '2025-04-01',
         type: 'income',
         responsibility: 'michele',
@@ -223,6 +215,7 @@ const TransactionsList = ({ isActive }: TransactionsListProps) => {
         description: 'Restaurante',
         amount: 150,
         category_id: 'cat1',
+        category_name: 'Alimentação',
         date: '2025-04-15',
         type: 'expense',
         responsibility: 'michele',
@@ -238,6 +231,49 @@ const TransactionsList = ({ isActive }: TransactionsListProps) => {
     
     setCategories(mockCategories);
     setTransactions(mockTransactions);
+  };
+
+  const handleEditTransaction = (transaction: Transaction) => {
+    setEditTransaction(transaction);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleDeleteTransaction = async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir esta transação?')) return;
+    
+    try {
+      // Check if there's a debt related to this transaction
+      const { data: debts } = await supabase
+        .from('debts')
+        .select('id')
+        .eq('transaction_id', id);
+        
+      // Delete any related debts first
+      if (debts && debts.length > 0) {
+        await supabase
+          .from('debts')
+          .delete()
+          .eq('transaction_id', id);
+      }
+      
+      // Delete the transaction
+      const { error } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('id', id);
+        
+      if (error) throw error;
+      
+      toast.success('Transação excluída com sucesso');
+      fetchData();
+    } catch (error) {
+      console.error('Erro ao excluir transação:', error);
+      toast.error('Erro ao excluir transação');
+    }
+  };
+
+  const handleTransactionUpdated = () => {
+    fetchData();
   };
 
   const formatDate = (dateString: string) => {
@@ -316,6 +352,7 @@ const TransactionsList = ({ isActive }: TransactionsListProps) => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Resp.</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Divisão</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Recorrente</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -372,6 +409,25 @@ const TransactionsList = ({ isActive }: TransactionsListProps) => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         {transaction.is_recurring ? 'Sim' : 'Não'}
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        <div className="flex space-x-2">
+                          <Button 
+                            variant="outline" 
+                            size="icon"
+                            onClick={() => handleEditTransaction(transaction)}
+                          >
+                            <PencilIcon className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="icon"
+                            onClick={() => handleDeleteTransaction(transaction.id)}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            <TrashIcon className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -379,6 +435,13 @@ const TransactionsList = ({ isActive }: TransactionsListProps) => {
             </div>
           </div>
         )}
+        
+        <EditTransactionDialog 
+          open={isEditDialogOpen}
+          onOpenChange={setIsEditDialogOpen}
+          transaction={editTransaction}
+          onTransactionUpdated={handleTransactionUpdated}
+        />
       </div>
     </div>
   );
