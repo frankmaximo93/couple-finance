@@ -10,6 +10,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/context/AuthContext';
 
 type ReportsProps = {
   isActive: boolean;
@@ -19,47 +21,96 @@ const Reports = ({ isActive }: ReportsProps) => {
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [reportsData, setReportsData] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
-    if (isActive) {
+    if (isActive && user) {
       fetchReportsData();
     }
-  }, [isActive, date]);
+  }, [isActive, date, user]);
 
   const fetchReportsData = async () => {
     setIsLoading(true);
     try {
-      // Simulando dados para demonstração
-      // No ambiente real, você faria uma chamada para a API
-      setTimeout(() => {
-        const data = {
-          monthlySummary: [
-            { month: 'Jan', receitas: 3500, despesas: 2800 },
-            { month: 'Fev', receitas: 4200, despesas: 3100 },
-            { month: 'Mar', receitas: 3800, despesas: 3500 },
-            { month: 'Abr', receitas: 4500, despesas: 3300 },
-            { month: 'Mai', receitas: 5000, despesas: 3600 },
-            { month: 'Jun', receitas: 4800, despesas: 3900 },
-          ],
-          categoryBreakdown: [
-            { name: 'Alimentação', value: 1200, fill: '#FF8042' },
-            { name: 'Moradia', value: 1800, fill: '#00C49F' },
-            { name: 'Transporte', value: 800, fill: '#FFBB28' },
-            { name: 'Lazer', value: 600, fill: '#0088FE' },
-            { name: 'Saúde', value: 400, fill: '#FF8042' },
-          ],
-          responsibilityDistribution: [
-            { name: 'Casal', value: 2400, fill: '#8884d8' },
-            { name: 'Franklin', value: 1200, fill: '#82ca9d' },
-            { name: 'Michele', value: 600, fill: '#ffc658' },
-          ]
-        };
-        setReportsData(data);
+      // Get selected month and year
+      const selectedMonth = date ? date.getMonth() + 1 : new Date().getMonth() + 1;
+      const selectedYear = date ? date.getFullYear() : new Date().getFullYear();
+      
+      // Fetch transactions for the selected month
+      const { data: transactionsData, error: transactionsError } = await supabase
+        .from('transactions')
+        .select('*, categories(name)')
+        .gte('date', `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-01`)
+        .lt('date', 
+            selectedMonth === 12 
+              ? `${selectedYear + 1}-01-01` 
+              : `${selectedYear}-${(selectedMonth + 1).toString().padStart(2, '0')}-01`
+        );
+        
+      if (transactionsError) {
+        console.error('Error fetching transactions for reports:', transactionsError);
+        toast.error('Erro ao carregar dados para relatórios');
         setIsLoading(false);
-      }, 800);
+        return;
+      }
+      
+      // Prepare data for reports
+      if (transactionsData && transactionsData.length > 0) {
+        // Process category breakdown
+        const categoryMap: Record<string, { name: string, value: number, fill: string }> = {};
+        const colorPalette = ['#FF8042', '#00C49F', '#FFBB28', '#0088FE', '#8884d8', '#ffc658', '#82ca9d'];
+        
+        // Process responsibility distribution
+        const responsibilityMap: Record<string, { name: string, value: number, fill: string }> = {
+          'franklin': { name: 'Franklin', value: 0, fill: '#82ca9d' },
+          'michele': { name: 'Michele', value: 0, fill: '#ffc658' },
+          'casal': { name: 'Casal', value: 0, fill: '#8884d8' }
+        };
+        
+        // Monthly summary (for 6 months back) - we'd need more complex querying here
+        // For now, just prepare the structure
+        const monthlyData: Record<string, { month: string, receitas: number, despesas: number }> = {};
+        
+        // Process transactions
+        transactionsData.forEach((t: any, index: number) => {
+          // For category breakdown (only expenses)
+          if (t.type === 'expense' && t.category_id) {
+            const categoryName = t.categories?.name || 'Outras';
+            if (!categoryMap[categoryName]) {
+              const colorIndex = Object.keys(categoryMap).length % colorPalette.length;
+              categoryMap[categoryName] = {
+                name: categoryName,
+                value: 0,
+                fill: colorPalette[colorIndex]
+              };
+            }
+            categoryMap[categoryName].value += parseFloat(t.amount);
+          }
+          
+          // For responsibility distribution (only expenses)
+          if (t.type === 'expense' && t.responsibility && responsibilityMap[t.responsibility]) {
+            responsibilityMap[t.responsibility].value += parseFloat(t.amount);
+          }
+        });
+        
+        // Prepare the final data structure
+        setReportsData({
+          monthlySummary: [
+            // This would require more complex queries to get real monthly trends
+            // For now, we'll leave it empty
+          ],
+          categoryBreakdown: Object.values(categoryMap),
+          responsibilityDistribution: Object.values(responsibilityMap).filter(r => r.value > 0)
+        });
+      } else {
+        // No data for the selected period
+        setReportsData(null);
+      }
     } catch (error) {
       console.error('Erro ao buscar dados de relatórios:', error);
       toast.error('Erro ao carregar relatórios');
+      setReportsData(null);
+    } finally {
       setIsLoading(false);
     }
   };

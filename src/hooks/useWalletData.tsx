@@ -63,86 +63,75 @@ export const useWalletData = (isActive: boolean, userId: string | undefined) => 
     setIsLoading(true);
     
     try {
-      generateMockWalletData();
-      
-      try {
-        const { data: debtsData, error: debtsError } = await supabase
-          .from('debts')
-          .select('*, transactions(description)')
-          .order('created_at', { ascending: false });
+      // Try to fetch real transactions data
+      const { data: transactionsData, error: transactionsError } = await supabase
+        .from('transactions')
+        .select('*, categories(name)');
+        
+      if (transactionsError) {
+        console.error('Error fetching transactions:', transactionsError);
+        toast.error('Erro ao carregar transações');
+        setWallets({});
+      } else {
+        // Fetch categories for mapping
+        const { data: categoriesData, error: categoriesError } = await supabase
+          .from('categories')
+          .select('id, name');
           
-        if (debtsError) {
-          console.error('Error fetching debts:', debtsError);
-        } else if (debtsData && debtsData.length > 0) {
-          const processedDebts: DebtInfo[] = debtsData.map((debt: any) => ({
-            id: debt.id,
-            amount: debt.amount,
-            owedTo: debt.owed_to as WalletPerson,
-            owed_to: debt.owed_to as WalletPerson,
-            owed_by: debt.owed_by as WalletPerson,
-            description: debt.transactions?.description || 'Dívida',
-            is_paid: debt.is_paid
-          }));
-          
-          setDebts(processedDebts);
+        if (categoriesError) {
+          console.error('Error fetching categories:', categoriesError);
         }
-      } catch (error) {
-        console.error('Error fetching real debts data:', error);
+        
+        // Create category mapping
+        const categoryMap: {[key: string]: string} = {};
+        if (categoriesData) {
+          categoriesData.forEach((cat: any) => {
+            categoryMap[cat.id] = cat.name;
+          });
+        }
+        
+        // Build wallet data from real transactions
+        const franklinWallet = buildWalletData('franklin', transactionsData || [], categoryMap);
+        const micheleWallet = buildWalletData('michele', transactionsData || [], categoryMap);
+        
+        setWallets({
+          franklin: franklinWallet,
+          michele: micheleWallet
+        });
+      }
+      
+      // Fetch real debts data
+      const { data: debtsData, error: debtsError } = await supabase
+        .from('debts')
+        .select('*, transactions(description)')
+        .order('created_at', { ascending: false });
+        
+      if (debtsError) {
+        console.error('Error fetching debts:', debtsError);
+        setDebts([]);
+      } else if (debtsData && debtsData.length > 0) {
+        const processedDebts: DebtInfo[] = debtsData.map((debt: any) => ({
+          id: debt.id,
+          amount: debt.amount,
+          owedTo: debt.owed_to as WalletPerson,
+          owed_to: debt.owed_to as WalletPerson,
+          owed_by: debt.owed_by as WalletPerson,
+          description: debt.transactions?.description || 'Dívida',
+          is_paid: debt.is_paid
+        }));
+        
+        setDebts(processedDebts);
+      } else {
+        setDebts([]);
       }
     } catch (error) {
       console.error('Erro ao carregar dados das carteiras:', error);
       toast.error('Erro ao carregar dados financeiros');
-      generateMockWalletData();
+      setWallets({});
+      setDebts([]);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const generateMockWalletData = () => {
-    const mockTransactions = [
-      { responsibility: 'franklin', type: 'income', amount: 4500, category_id: 'salary', description: 'Salário', date: '2025-04-01' },
-      { responsibility: 'franklin', type: 'expense', amount: 1200, category_id: 'home', description: 'Aluguel', date: '2025-04-05' },
-      { responsibility: 'franklin', type: 'expense', amount: 350, category_id: 'food', description: 'Supermercado', date: '2025-04-10' },
-      { responsibility: 'franklin', type: 'expense', amount: 200, category_id: 'transport', description: 'Combustível', date: '2025-04-15' },
-      
-      { responsibility: 'michele', type: 'income', amount: 3800, category_id: 'salary', description: 'Salário', date: '2025-04-01' },
-      { responsibility: 'michele', type: 'expense', amount: 800, category_id: 'home', description: 'Contas', date: '2025-04-05' },
-      { responsibility: 'michele', type: 'expense', amount: 450, category_id: 'food', description: 'Restaurantes', date: '2025-04-12' },
-      { responsibility: 'michele', type: 'expense', amount: 300, category_id: 'shopping', description: 'Roupas', date: '2025-04-18' },
-      
-      { responsibility: 'casal', type: 'expense', amount: 500, category_id: 'leisure', description: 'Cinema e lazer', date: '2025-04-20' }
-    ];
-    
-    const mockCategories = {
-      'salary': 'Salário',
-      'home': 'Moradia',
-      'food': 'Alimentação',
-      'transport': 'Transporte',
-      'shopping': 'Compras',
-      'leisure': 'Lazer'
-    };
-    
-    const mockDebts = [
-      { id: '1', amount: 175, owed_to: 'franklin', owed_by: 'michele', description: 'Supermercado', is_paid: false },
-      { id: '2', amount: 250, owed_to: 'michele', owed_by: 'franklin', description: 'Restaurante', is_paid: false }
-    ];
-    
-    const franklinWallet = buildWalletData('franklin', mockTransactions, mockCategories);
-    const micheleWallet = buildWalletData('michele', mockTransactions, mockCategories);
-    
-    setWallets({
-      franklin: franklinWallet,
-      michele: micheleWallet
-    });
-    
-    const typedMockDebts: DebtInfo[] = mockDebts.map(debt => ({
-      ...debt,
-      owedTo: debt.owed_to as WalletPerson,
-      owed_to: debt.owed_to as WalletPerson,
-      owed_by: debt.owed_by as WalletPerson
-    }));
-    
-    setDebts(typedMockDebts);
   };
 
   const handlePayDebt = async (debtId: string) => {

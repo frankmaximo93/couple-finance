@@ -1,4 +1,3 @@
-
 import { WalletPerson } from '@/integrations/supabase/client';
 
 export type BillStatus = 'pending' | 'paid' | 'overdue';
@@ -48,61 +47,72 @@ export const formatDate = (dateString: string): string => {
 };
 
 export const buildWalletData = (
-  owner: string, 
+  responsibility: string, 
   transactions: any[], 
-  categoriesMap: Record<string, string>
+  categoryMap: {[key: string]: string}
 ): WalletData => {
-  const ownerTransactions = transactions.filter(
-    t => t.responsibility === owner || t.responsibility === 'casal'
-  );
+  const wallet: WalletData = {
+    id: responsibility,
+    balance: 0,
+    income: 0,
+    expenses: 0,
+    bills: [],
+    categories: []
+  };
   
-  const income = ownerTransactions
-    .filter(t => t.type === 'income')
-    .reduce((sum, t) => sum + parseFloat(t.amount), 0);
-    
-  const expenses = ownerTransactions
-    .filter(t => t.type === 'expense')
-    .reduce((sum, t) => sum + parseFloat(t.amount), 0);
-    
-  const balance = income - expenses;
+  if (!transactions || transactions.length === 0) {
+    return wallet;
+  }
   
-  const categorySpending: Record<string, number> = {};
-  ownerTransactions
-    .filter(t => t.type === 'expense')
-    .forEach(t => {
-      const categoryId = t.category_id;
-      if (categoryId) {
-        if (!categorySpending[categoryId]) {
-          categorySpending[categoryId] = 0;
+  const categoryTotals: {[key: string]: number} = {};
+  const billsMap: {[key: string]: Bill} = {};
+  
+  transactions.forEach(transaction => {
+    if (transaction.responsibility === responsibility) {
+      if (transaction.type === 'income') {
+        wallet.income += parseFloat(transaction.amount);
+        wallet.balance += parseFloat(transaction.amount);
+      } else if (transaction.type === 'expense') {
+        wallet.expenses += parseFloat(transaction.amount);
+        wallet.balance -= parseFloat(transaction.amount);
+        
+        const categoryName = transaction.category_id && categoryMap[transaction.category_id] 
+          ? categoryMap[transaction.category_id] 
+          : 'Outros';
+          
+        if (!categoryTotals[categoryName]) {
+          categoryTotals[categoryName] = 0;
         }
-        categorySpending[categoryId] += parseFloat(t.amount);
+        categoryTotals[categoryName] += parseFloat(transaction.amount);
+        
+        if (transaction.payment_method === 'credit' || 
+            (transaction.due_date && new Date(transaction.due_date) >= new Date())) {
+          const billKey = `${transaction.description}-${transaction.due_date || 'no-date'}`;
+          
+          if (!billsMap[billKey]) {
+            billsMap[billKey] = {
+              id: transaction.id,
+              description: transaction.description,
+              amount: parseFloat(transaction.amount),
+              dueDate: transaction.due_date || new Date().toISOString().split('T')[0],
+              status: transaction.status || 'pending'
+            };
+          }
+        }
       }
-    });
+    }
+  });
   
-  const colors = ['#FF8042', '#00C49F', '#FFBB28', '#0088FE', '#8884d8', '#82ca9d'];
-  const categories = Object.entries(categorySpending).map(([catId, value], index) => ({
-    name: categoriesMap[catId] || 'Outros',
+  const colors = ['#FF8042', '#00C49F', '#FFBB28', '#0088FE', '#8884d8', '#ffc658', '#82ca9d'];
+  wallet.categories = Object.entries(categoryTotals).map(([name, value], index) => ({
+    name,
     value,
     fill: colors[index % colors.length]
   }));
   
-  const bills = ownerTransactions
-    .filter(t => t.type === 'expense')
-    .map(t => ({
-      description: t.description,
-      amount: parseFloat(t.amount),
-      dueDate: t.date,
-      status: 'pending' as BillStatus
-    }));
+  wallet.bills = Object.values(billsMap);
   
-  return {
-    owner: owner === 'franklin' ? 'Franklin' : 'Michele',
-    balance,
-    income,
-    expenses,
-    bills,
-    categories
-  };
+  return wallet;
 };
 
 export const getTotalOwedByPerson = (debts: DebtInfo[], person: WalletPerson): number => {

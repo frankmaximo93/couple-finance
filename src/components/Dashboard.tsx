@@ -1,4 +1,3 @@
-
 import { useEffect, useState, useRef } from 'react';
 import Chart from 'chart.js/auto';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -101,49 +100,91 @@ const Dashboard = ({ isActive }: DashboardProps) => {
 
   const fetchDashboardData = async () => {
     try {
-      try {
-        // Try to fetch real data from Supabase
-        const { data: transactionsData, error: transactionsError } = await supabase
-          .from('transactions')
-          .select('*');
-          
-        if (!transactionsError && transactionsData && transactionsData.length > 0) {
-          // Process real transaction data
-          const income = transactionsData
-            .filter((t: any) => t.type === 'income')
-            .reduce((sum: number, t: any) => sum + parseFloat(t.amount), 0);
-            
-          const expense = transactionsData
-            .filter((t: any) => t.type === 'expense')
-            .reduce((sum: number, t: any) => sum + parseFloat(t.amount), 0);
-            
-          setSaldoTotal(income - expense);
-          setMonthlySummary({
-            monthly_income: income,
-            monthly_expense: expense
+      // Fetch real transactions data from Supabase
+      const { data: transactionsData, error: transactionsError } = await supabase
+        .from('transactions')
+        .select('*');
+        
+      if (transactionsError) {
+        console.error('Error fetching transactions:', transactionsError);
+        toast.error('Erro ao carregar transações');
+        setIsLoading(false);
+        return;
+      }
+
+      // Process real transaction data
+      const income = transactionsData
+        .filter((t: any) => t.type === 'income')
+        .reduce((sum: number, t: any) => sum + parseFloat(t.amount), 0);
+        
+      const expense = transactionsData
+        .filter((t: any) => t.type === 'expense')
+        .reduce((sum: number, t: any) => sum + parseFloat(t.amount), 0);
+        
+      setSaldoTotal(income - expense);
+      setMonthlySummary({
+        monthly_income: income,
+        monthly_expense: expense
+      });
+      
+      // Calculate category summaries from real data
+      const categorySummaries: Record<string, CategorySummary> = {};
+      
+      // Fetch categories
+      const { data: categoriesData, error: categoriesError } = await supabase
+        .from('categories')
+        .select('id, name');
+        
+      if (categoriesError) {
+        console.error('Error fetching categories:', categoriesError);
+      } else {
+        // Create category mapping
+        const categoryMap: {[key: string]: string} = {};
+        if (categoriesData) {
+          categoriesData.forEach((cat: any) => {
+            categoryMap[cat.id] = cat.name;
+            // Initialize each category in our summary
+            categorySummaries[cat.id] = {
+              category: cat.name,
+              income: 0,
+              expense: 0
+            };
           });
-          
-          // Generate insights based on real data
-          generateInsights(income - expense, { monthly_income: income, monthly_expense: expense });
-          return;
         }
-      } catch (supabaseError) {
-        console.error('Error fetching from Supabase:', supabaseError);
+        
+        // Aggregate transactions by category
+        transactionsData.forEach((t: any) => {
+          if (t.category_id && categorySummaries[t.category_id]) {
+            if (t.type === 'income') {
+              categorySummaries[t.category_id].income += parseFloat(t.amount);
+            } else {
+              categorySummaries[t.category_id].expense += parseFloat(t.amount);
+            }
+          }
+        });
+        
+        setCategorySummary(Object.values(categorySummaries));
       }
       
-      // If we get here, use mock data
-      // Generate mock data for demonstration
-      generateMockData();
+      // Generate insights based on real data
+      generateInsights(income - expense, { monthly_income: income, monthly_expense: expense });
       
-      // Generate insights based on the mock data
-      generateInsights(4000, {monthly_income: 8300, monthly_expense: 4300});
+      // For budget status and monthly trend, we'll need more complex queries or calculations
+      // For now, initialize with empty arrays
+      setBudgetStatus([]);
+      setMonthlyTrend([]);
+        
     } catch (error) {
       console.error('Erro ao carregar dados do dashboard:', error);
       toast.error('Erro ao carregar dados do dashboard');
       
-      // Use mock data for demonstration
-      generateMockData();
-      generateInsights(4000, {monthly_income: 8300, monthly_expense: 4300});
+      // Initialize with empty values
+      setSaldoTotal(0);
+      setMonthlySummary({ monthly_income: 0, monthly_expense: 0 });
+      setBudgetStatus([]);
+      setCategorySummary([]);
+      setMonthlyTrend([]);
+      setInsights([]);
     } finally {
       setIsLoading(false);
     }
