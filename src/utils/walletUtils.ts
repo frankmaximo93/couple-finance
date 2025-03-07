@@ -1,3 +1,4 @@
+
 import { WalletPerson } from '@/integrations/supabase/client';
 
 export type BillStatus = 'pending' | 'paid' | 'overdue';
@@ -7,6 +8,7 @@ export type Bill = {
   amount: number;
   dueDate: string;
   status: BillStatus;
+  id?: string; // Add optional id property to Bill type
 };
 
 export type CategoryData = {
@@ -16,7 +18,7 @@ export type CategoryData = {
 };
 
 export type WalletData = {
-  owner: string;
+  owner: string; // Changed from 'id' to 'owner' to match usage
   balance: number;
   income: number;
   expenses: number;
@@ -52,7 +54,7 @@ export const buildWalletData = (
   categoryMap: {[key: string]: string}
 ): WalletData => {
   const wallet: WalletData = {
-    id: responsibility,
+    owner: responsibility, // Changed 'id' to 'owner' to match the type
     balance: 0,
     income: 0,
     expenses: 0,
@@ -91,11 +93,11 @@ export const buildWalletData = (
           
           if (!billsMap[billKey]) {
             billsMap[billKey] = {
-              id: transaction.id,
               description: transaction.description,
               amount: parseFloat(transaction.amount),
               dueDate: transaction.due_date || new Date().toISOString().split('T')[0],
-              status: transaction.status || 'pending'
+              status: transaction.status || 'pending',
+              id: transaction.id // Now optional in the type
             };
           }
         }
