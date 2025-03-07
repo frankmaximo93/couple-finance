@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
@@ -41,7 +40,7 @@ type DebtInfo = {
   amount: number;
   owedTo: 'franklin' | 'michele';
   owed_by: 'franklin' | 'michele';
-  owed_to: 'franklin' | 'michele';
+  owed_to: 'franklin' | 'michele'; // Keep both properties for compatibility
   description: string;
   is_paid: boolean;
 };
@@ -121,9 +120,9 @@ const Wallets = ({ isActive }: WalletsProps) => {
           const processedDebts: DebtInfo[] = debtsData.map((debt: any) => ({
             id: debt.id,
             amount: debt.amount,
-            owedTo: debt.owed_to,
+            owedTo: debt.owed_to, // Set the camelCase version
+            owed_to: debt.owed_to, // Keep the snake_case version for compatibility
             owed_by: debt.owed_by,
-            owed_to: debt.owed_to,
             description: debt.transactions?.description || 'Dívida',
             is_paid: debt.is_paid
           }));
@@ -179,7 +178,13 @@ const Wallets = ({ isActive }: WalletsProps) => {
       michele: micheleWallet
     });
     
-    setDebts(mockDebts);
+    // Transform mockDebts to match DebtInfo type
+    const typedMockDebts: DebtInfo[] = mockDebts.map(debt => ({
+      ...debt,
+      owedTo: debt.owed_to as 'franklin' | 'michele'
+    }));
+    
+    setDebts(typedMockDebts);
   };
 
   const buildWalletData = (
