@@ -227,6 +227,50 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
     return Object.keys(newErrors).length === 0;
   };
   
+  const createIndividualTransactions = async (transactionData: any, amount: number) => {
+    if (transactionData.responsibility !== 'casal' || transactionData.type !== 'expense') {
+      return;
+    }
+    
+    const halfAmount = amount / 2;
+    
+    const franklinTransaction = {
+      ...transactionData,
+      responsibility: 'franklin',
+      amount: halfAmount,
+      split_expense: false,
+      paid_by: null,
+      parent_transaction_id: transactionData.id
+    };
+    
+    const micheleTransaction = {
+      ...transactionData,
+      responsibility: 'michele',
+      amount: halfAmount,
+      split_expense: false,
+      paid_by: null,
+      parent_transaction_id: transactionData.id
+    };
+    
+    try {
+      const { error: errorFranklin } = await supabase
+        .from('transactions')
+        .insert(franklinTransaction);
+        
+      if (errorFranklin) throw errorFranklin;
+      
+      const { error: errorMichele } = await supabase
+        .from('transactions')
+        .insert(micheleTransaction);
+        
+      if (errorMichele) throw errorMichele;
+      
+      console.log('Transações individuais criadas com sucesso');
+    } catch (error) {
+      console.error('Erro ao criar transações individuais:', error);
+    }
+  };
+  
   const createDebtRecord = async (transactionId: string, amount: number, paidBy: string) => {
     const owedBy = paidBy === 'franklin' ? 'michele' : 'franklin';
     const halfAmount = amount / 2;
@@ -283,8 +327,14 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
         throw error;
       }
       
-      if (data && formData.split_expense && formData.paid_by) {
-        await createDebtRecord(data.id, parseFloat(formData.amount), formData.paid_by);
+      if (data) {
+        if (transactionData.responsibility === 'casal' && transactionData.type === 'expense') {
+          await createIndividualTransactions(data, parseFloat(formData.amount));
+        }
+        
+        if (data && formData.split_expense && formData.paid_by) {
+          await createDebtRecord(data.id, parseFloat(formData.amount), formData.paid_by);
+        }
       }
       
       toast.success('Transação salva com sucesso!');

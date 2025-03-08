@@ -334,7 +334,79 @@ const EditTransactionDialog = ({
       console.error('Error managing debt record:', error);
     }
   };
-  
+
+  const updateIndividualTransactions = async (transactionId: string, transactionData: any, amount: number) => {
+    if (transactionData.responsibility !== 'casal' || transactionData.type !== 'expense') {
+      try {
+        const { error } = await supabase
+          .from('transactions')
+          .delete()
+          .eq('parent_transaction_id', transactionId);
+          
+        if (error) console.error('Erro ao remover transações individuais antigas:', error);
+        return;
+      } catch (error) {
+        console.error('Erro ao limpar transações individuais:', error);
+        return;
+      }
+    }
+    
+    const halfAmount = amount / 2;
+    
+    try {
+      const { data: existingTxs, error: queryError } = await supabase
+        .from('transactions')
+        .select('id, responsibility')
+        .eq('parent_transaction_id', transactionId);
+        
+      if (queryError) throw queryError;
+      
+      if (existingTxs && existingTxs.length > 0) {
+        for (const tx of existingTxs) {
+          await supabase
+            .from('transactions')
+            .update({
+              description: transactionData.description,
+              amount: halfAmount,
+              category_id: transactionData.category_id,
+              date: transactionData.date,
+              payment_method: transactionData.payment_method,
+              installments: transactionData.installments,
+              due_date: transactionData.due_date,
+              status: transactionData.status,
+              is_recurring: transactionData.is_recurring
+            })
+            .eq('id', tx.id);
+        }
+      } else {
+        const franklinTransaction = {
+          ...transactionData,
+          responsibility: 'franklin',
+          amount: halfAmount,
+          split_expense: false,
+          paid_by: null,
+          parent_transaction_id: transactionId
+        };
+        
+        const micheleTransaction = {
+          ...transactionData,
+          responsibility: 'michele',
+          amount: halfAmount,
+          split_expense: false,
+          paid_by: null,
+          parent_transaction_id: transactionId
+        };
+        
+        await supabase.from('transactions').insert(franklinTransaction);
+        await supabase.from('transactions').insert(micheleTransaction);
+      }
+      
+      console.log('Transações individuais atualizadas com sucesso');
+    } catch (error) {
+      console.error('Erro ao atualizar transações individuais:', error);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -366,6 +438,21 @@ const EditTransactionDialog = ({
       
       if (error) {
         throw error;
+      }
+      
+      if (formData.responsibility === 'casal' && formData.type === 'expense') {
+        await updateIndividualTransactions(formData.id, transactionData, formData.amount);
+      } else {
+        try {
+          const { error } = await supabase
+            .from('transactions')
+            .delete()
+            .eq('parent_transaction_id', formData.id);
+            
+          if (error) console.error('Erro ao remover transações individuais antigas:', error);
+        } catch (error) {
+          console.error('Erro ao limpar transações individuais:', error);
+        }
       }
       
       if (formData.split_expense && formData.paid_by) {

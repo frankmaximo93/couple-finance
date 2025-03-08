@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Bill, BillStatus, formatCurrency, formatDate } from '@/utils/walletUtils';
@@ -34,7 +35,7 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
       const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
       
       // Fetch transactions that are due this month
-      // Convert now.getMonth() to string to fix TypeScript error
+      // Corrigindo o erro TypeScript convertendo getMonth() para string
       const { data, error } = await supabase
         .from('transactions')
         .select('*')

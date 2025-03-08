@@ -7,6 +7,7 @@ import BudgetCard from './BudgetCard';
 import DebtCard from './DebtCard';
 import ExpensesChart from './ExpensesChart';
 import BillsList from './BillsList';
+import TransactionsList from '../wallet/TransactionsList';
 
 type WalletContentProps = {
   walletKey: WalletPerson;
@@ -29,6 +30,10 @@ const WalletContent = ({ walletKey, wallet, debts, onPayDebt }: WalletContentPro
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <ExpensesChart wallet={wallet} />
         <BillsList wallet={wallet} />
+      </div>
+      
+      <div className="mt-6">
+        <TransactionsList walletKey={walletKey} />
       </div>
     </TabsContent>
   );
