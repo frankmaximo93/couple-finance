@@ -15,6 +15,7 @@ type Transaction = {
   type: string;
   status: string;
   category_name?: string;
+  parent_transaction_id?: string;
 };
 
 type TransactionsListProps = {
@@ -35,7 +36,7 @@ const TransactionsList = ({ walletKey }: TransactionsListProps) => {
   const fetchTransactions = async () => {
     setIsLoading(true);
     try {
-      // Buscar transações individuais para esta carteira específica
+      // Fetch individual transactions for this specific wallet
       const { data, error } = await supabase
         .from('transactions')
         .select('*, categories(name)')
@@ -48,15 +49,34 @@ const TransactionsList = ({ walletKey }: TransactionsListProps) => {
         toast.error('Não foi possível carregar as transações');
         setTransactions([]);
       } else {
-        const formattedTransactions = (data || []).map(tx => ({
+        // Also fetch transactions that were created as half-split from couple expenses
+        const { data: sharedData, error: sharedError } = await supabase
+          .from('transactions')
+          .select('*, categories(name)')
+          .eq('responsibility', walletKey)
+          .not('parent_transaction_id', 'is', null)
+          .order('date', { ascending: false });
+
+        if (sharedError) {
+          console.error('Erro ao buscar transações compartilhadas:', sharedError);
+        }
+
+        // Combine both regular and shared transactions
+        const allTransactions = [...(data || []), ...(sharedData || [])];
+        
+        const formattedTransactions = allTransactions.map(tx => ({
           id: tx.id,
-          description: tx.description,
+          description: tx.description + (tx.parent_transaction_id ? ' (Compartilhado)' : ''),
           amount: parseFloat(String(tx.amount)), // Convert to string first to fix type error
           date: tx.date,
           type: tx.type,
           status: tx.status,
-          category_name: tx.categories?.name || 'Sem categoria'
+          category_name: tx.categories?.name || 'Sem categoria',
+          parent_transaction_id: tx.parent_transaction_id
         }));
+        
+        // Sort transactions by date (newest first)
+        formattedTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         
         setTransactions(formattedTransactions);
       }
@@ -93,7 +113,7 @@ const TransactionsList = ({ walletKey }: TransactionsListProps) => {
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {transactions.map((transaction) => (
-                  <tr key={transaction.id} className="hover:bg-gray-50">
+                  <tr key={transaction.id} className={`hover:bg-gray-50 ${transaction.parent_transaction_id ? 'bg-blue-50' : ''}`}>
                     <td className="py-2 px-3 whitespace-nowrap text-sm text-gray-500">{formatDate(transaction.date)}</td>
                     <td className="py-2 px-3 whitespace-nowrap text-sm font-medium text-gray-900">{transaction.description}</td>
                     <td className="py-2 px-3 whitespace-nowrap text-sm text-gray-500">{transaction.category_name}</td>

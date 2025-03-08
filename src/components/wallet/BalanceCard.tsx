@@ -14,7 +14,9 @@ const BalanceCard = ({ wallet }: BalanceCardProps) => {
         <CardTitle className="text-lg">Saldo atual</CardTitle>
       </CardHeader>
       <CardContent>
-        <p className="text-3xl font-bold text-finance-income">{formatCurrency(wallet.balance)}</p>
+        <p className={`text-3xl font-bold ${wallet.balance >= 0 ? 'text-finance-income' : 'text-finance-expense'}`}>
+          {formatCurrency(wallet.balance)}
+        </p>
         <div className="flex justify-between mt-4 text-sm">
           <div>
             <p className="text-gray-500">Receitas</p>

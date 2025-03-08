@@ -69,7 +69,9 @@ export const buildWalletData = (
   const categoryTotals: {[key: string]: number} = {};
   const billsMap: {[key: string]: Bill} = {};
   
+  // First pass: process regular transactions for this wallet
   transactions.forEach(transaction => {
+    // Only process transactions that belong to this wallet directly or through parent_transaction_id
     if (transaction.responsibility === responsibility) {
       if (transaction.type === 'income') {
         // Only add to income/balance if it's received
