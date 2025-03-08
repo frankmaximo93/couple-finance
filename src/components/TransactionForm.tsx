@@ -253,21 +253,30 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
     };
     
     try {
+      console.log('Creating individual transaction for Franklin:', franklinTransaction);
       const { error: errorFranklin } = await supabase
         .from('transactions')
         .insert(franklinTransaction);
         
-      if (errorFranklin) throw errorFranklin;
+      if (errorFranklin) {
+        console.error('Error creating transaction for Franklin:', errorFranklin);
+        throw errorFranklin;
+      }
       
+      console.log('Creating individual transaction for Michele:', micheleTransaction);
       const { error: errorMichele } = await supabase
         .from('transactions')
         .insert(micheleTransaction);
         
-      if (errorMichele) throw errorMichele;
+      if (errorMichele) {
+        console.error('Error creating transaction for Michele:', errorMichele);
+        throw errorMichele;
+      }
       
-      console.log('Transações individuais criadas com sucesso');
+      console.log('Individual transactions created successfully');
     } catch (error) {
-      console.error('Erro ao criar transações individuais:', error);
+      console.error('Error creating individual transactions:', error);
+      toast.error('Erro ao criar transações individuais');
     }
   };
   
@@ -328,6 +337,8 @@ const TransactionForm = ({ isActive }: TransactionFormProps) => {
       }
       
       if (data) {
+        console.log('Transaction saved:', data);
+        
         if (transactionData.responsibility === 'casal' && transactionData.type === 'expense') {
           await createIndividualTransactions(data, parseFloat(formData.amount));
         }

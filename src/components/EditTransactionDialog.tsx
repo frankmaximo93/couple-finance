@@ -338,15 +338,16 @@ const EditTransactionDialog = ({
   const updateIndividualTransactions = async (transactionId: string, transactionData: any, amount: number) => {
     if (transactionData.responsibility !== 'casal' || transactionData.type !== 'expense') {
       try {
+        console.log('Removing individual transactions for non-couple expense:', transactionId);
         const { error } = await supabase
           .from('transactions')
           .delete()
           .eq('parent_transaction_id', transactionId);
           
-        if (error) console.error('Erro ao remover transações individuais antigas:', error);
+        if (error) console.error('Error removing old individual transactions:', error);
         return;
       } catch (error) {
-        console.error('Erro ao limpar transações individuais:', error);
+        console.error('Error clearing individual transactions:', error);
         return;
       }
     }
@@ -362,6 +363,7 @@ const EditTransactionDialog = ({
       if (queryError) throw queryError;
       
       if (existingTxs && existingTxs.length > 0) {
+        console.log('Updating existing individual transactions:', existingTxs);
         for (const tx of existingTxs) {
           await supabase
             .from('transactions')
@@ -378,7 +380,9 @@ const EditTransactionDialog = ({
             })
             .eq('id', tx.id);
         }
+        console.log('Individual transactions updated successfully');
       } else {
+        console.log('Creating new individual transactions for:', transactionId);
         const franklinTransaction = {
           ...transactionData,
           responsibility: 'franklin',
@@ -397,13 +401,17 @@ const EditTransactionDialog = ({
           parent_transaction_id: transactionId
         };
         
-        await supabase.from('transactions').insert(franklinTransaction);
-        await supabase.from('transactions').insert(micheleTransaction);
+        const { error: franklinError } = await supabase.from('transactions').insert(franklinTransaction);
+        if (franklinError) console.error('Error creating Franklin transaction:', franklinError);
+        
+        const { error: micheleError } = await supabase.from('transactions').insert(micheleTransaction);
+        if (micheleError) console.error('Error creating Michele transaction:', micheleError);
+        
+        console.log('New individual transactions created');
       }
-      
-      console.log('Transações individuais atualizadas com sucesso');
     } catch (error) {
-      console.error('Erro ao atualizar transações individuais:', error);
+      console.error('Error updating individual transactions:', error);
+      toast.error('Erro ao atualizar transações individuais');
     }
   };
 
@@ -440,6 +448,8 @@ const EditTransactionDialog = ({
         throw error;
       }
       
+      console.log('Transaction updated successfully:', formData.id);
+      
       if (formData.responsibility === 'casal' && formData.type === 'expense') {
         await updateIndividualTransactions(formData.id, transactionData, formData.amount);
       } else {
@@ -449,9 +459,9 @@ const EditTransactionDialog = ({
             .delete()
             .eq('parent_transaction_id', formData.id);
             
-          if (error) console.error('Erro ao remover transações individuais antigas:', error);
+          if (error) console.error('Error removing old individual transactions:', error);
         } catch (error) {
-          console.error('Erro ao limpar transações individuais:', error);
+          console.error('Error clearing individual transactions:', error);
         }
       }
       

@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Bill, BillStatus, formatCurrency, formatDate } from '@/utils/walletUtils';
@@ -49,7 +50,7 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
         const monthlyBills = (data || []).map(transaction => ({
           id: transaction.id,
           description: transaction.description,
-          amount: parseFloat(transaction.amount),
+          amount: parseFloat(String(transaction.amount)), // Convert to string first to fix type error
           dueDate: transaction.due_date || transaction.date,
           status: transaction.status as BillStatus,
           responsibility: transaction.responsibility

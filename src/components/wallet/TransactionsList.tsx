@@ -51,7 +51,7 @@ const TransactionsList = ({ walletKey }: TransactionsListProps) => {
         const formattedTransactions = (data || []).map(tx => ({
           id: tx.id,
           description: tx.description,
-          amount: parseFloat(tx.amount),
+          amount: parseFloat(String(tx.amount)), // Convert to string first to fix type error
           date: tx.date,
           type: tx.type,
           status: tx.status,
