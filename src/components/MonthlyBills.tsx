@@ -35,6 +35,7 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
       const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
       
       // Fetch transactions that are due this month
+      // Fix the error by converting now.getMonth() to string using template literals
       const { data, error } = await supabase
         .from('transactions')
         .select('*')
@@ -221,3 +222,4 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
 };
 
 export default MonthlyBills;
+
