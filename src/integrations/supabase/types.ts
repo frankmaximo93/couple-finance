@@ -107,6 +107,7 @@ export type Database = {
           installments: number | null
           is_recurring: boolean | null
           paid_by: string | null
+          parent_transaction_id: string | null
           payment_method: string | null
           responsibility: string
           split_expense: boolean | null
@@ -125,6 +126,7 @@ export type Database = {
           installments?: number | null
           is_recurring?: boolean | null
           paid_by?: string | null
+          parent_transaction_id?: string | null
           payment_method?: string | null
           responsibility: string
           split_expense?: boolean | null
@@ -143,6 +145,7 @@ export type Database = {
           installments?: number | null
           is_recurring?: boolean | null
           paid_by?: string | null
+          parent_transaction_id?: string | null
           payment_method?: string | null
           responsibility?: string
           split_expense?: boolean | null
@@ -156,6 +159,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_parent_transaction_id_fkey"
+            columns: ["parent_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
             referencedColumns: ["id"]
           },
         ]
