@@ -72,12 +72,15 @@ export const buildWalletData = (
   transactions.forEach(transaction => {
     if (transaction.responsibility === responsibility) {
       if (transaction.type === 'income') {
-        wallet.income += parseFloat(transaction.amount);
-        wallet.balance += parseFloat(transaction.amount);
+        // Only add to income/balance if it's received
+        if (transaction.status === 'received') {
+          wallet.income += parseFloat(transaction.amount);
+          wallet.balance += parseFloat(transaction.amount);
+        }
         
         // Add pending incomes to bills if they're not received yet
         if (transaction.status === 'to_receive') {
-          const billKey = `${transaction.description}-${transaction.due_date || 'no-date'}`;
+          const billKey = `${transaction.description}-${transaction.due_date || 'no-date'}-${transaction.id}`;
           
           if (!billsMap[billKey]) {
             billsMap[billKey] = {
@@ -90,8 +93,11 @@ export const buildWalletData = (
           }
         }
       } else if (transaction.type === 'expense') {
-        wallet.expenses += parseFloat(transaction.amount);
-        wallet.balance -= parseFloat(transaction.amount);
+        // Only add to expenses/balance if it's paid
+        if (transaction.status === 'paid') {
+          wallet.expenses += parseFloat(transaction.amount);
+          wallet.balance -= parseFloat(transaction.amount);
+        }
         
         const categoryName = transaction.category_id && categoryMap[transaction.category_id] 
           ? categoryMap[transaction.category_id] 
@@ -102,9 +108,8 @@ export const buildWalletData = (
         }
         categoryTotals[categoryName] += parseFloat(transaction.amount);
         
-        if (transaction.payment_method === 'credit' || 
-            (transaction.due_date && new Date(transaction.due_date) >= new Date())) {
-          const billKey = `${transaction.description}-${transaction.due_date || 'no-date'}`;
+        if (transaction.status === 'pending' || transaction.status === 'overdue') {
+          const billKey = `${transaction.description}-${transaction.due_date || 'no-date'}-${transaction.id}`;
           
           if (!billsMap[billKey]) {
             billsMap[billKey] = {
