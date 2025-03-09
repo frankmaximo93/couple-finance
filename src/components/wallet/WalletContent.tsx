@@ -14,9 +14,10 @@ type WalletContentProps = {
   wallet: WalletData;
   debts: DebtInfo[];
   onPayDebt: (debtId: string) => void;
+  refreshWallets: () => void;
 };
 
-const WalletContent = ({ walletKey, wallet, debts, onPayDebt }: WalletContentProps) => {
+const WalletContent = ({ walletKey, wallet, debts, onPayDebt, refreshWallets }: WalletContentProps) => {
   if (!wallet) return null;
 
   return (
@@ -33,7 +34,7 @@ const WalletContent = ({ walletKey, wallet, debts, onPayDebt }: WalletContentPro
       </div>
       
       <div className="mt-6">
-        <TransactionsList walletKey={walletKey} />
+        <TransactionsList walletKey={walletKey} refreshWallets={refreshWallets} />
       </div>
     </TabsContent>
   );

@@ -20,7 +20,8 @@ const Wallets = ({ isActive }: WalletsProps) => {
     debts,
     isLoading,
     showLinkedMessage,
-    handlePayDebt
+    handlePayDebt,
+    refreshWallets
   } = useWalletData(isActive, user?.id);
 
   if (!isActive) return null;
@@ -61,6 +62,7 @@ const Wallets = ({ isActive }: WalletsProps) => {
               wallet={wallets[walletKey]}
               debts={debts}
               onPayDebt={handlePayDebt}
+              refreshWallets={refreshWallets}
             />
           ))}
         </Tabs>

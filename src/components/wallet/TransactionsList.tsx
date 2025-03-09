@@ -21,9 +21,10 @@ type Transaction = {
 
 type TransactionsListProps = {
   walletKey: WalletPerson;
+  refreshWallets: () => void;
 };
 
-const TransactionsList = ({ walletKey }: TransactionsListProps) => {
+const TransactionsList = ({ walletKey, refreshWallets }: TransactionsListProps) => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { user } = useAuth();
@@ -81,6 +82,9 @@ const TransactionsList = ({ walletKey }: TransactionsListProps) => {
         formattedTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         
         setTransactions(formattedTransactions);
+        
+        // Refresh wallet data to ensure balances are up to date
+        refreshWallets();
       }
     } catch (error) {
       console.error('Erro ao processar transações:', error);
@@ -90,6 +94,30 @@ const TransactionsList = ({ walletKey }: TransactionsListProps) => {
       setIsLoading(false);
     }
   };
+
+  // Set up a subscription to listen for changes in the transactions table
+  useEffect(() => {
+    const channel = supabase
+      .channel('transactions-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'transactions'
+        },
+        (payload) => {
+          console.log('Transaction changed:', payload);
+          fetchTransactions();
+          refreshWallets();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [walletKey]);
 
   return (
     <Card>

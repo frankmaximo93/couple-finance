@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { WalletData, DebtInfo, buildWalletData } from '@/utils/walletUtils';
 import { WalletPerson, supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -11,55 +11,8 @@ export const useWalletData = (isActive: boolean, userId: string | undefined) => 
   const [linkedAccounts, setLinkedAccounts] = useState<Array<{ email: string, relationship: string }>>([]);
   const [showLinkedMessage, setShowLinkedMessage] = useState<boolean>(false);
 
-  useEffect(() => {
-    if (isActive && userId) {
-      fetchLinkedAccounts();
-      fetchWalletData();
-    }
-  }, [isActive, userId]);
-
-  const fetchLinkedAccounts = async () => {
-    try {
-      try {
-        const { data, error } = await supabase.rpc('get_linked_users');
-        
-        if (error) {
-          console.error('Error fetching linked accounts:', error);
-          
-          if (error.message.includes('Could not find the function')) {
-            const { data: relationships, error: relError } = await supabase
-              .from('user_relationships')
-              .select('*')
-              .eq('user_id', userId);
-              
-            if (!relError && relationships && relationships.length > 0) {
-              setLinkedAccounts([
-                { email: 'usuário vinculado', relationship: 'spouse' }
-              ]);
-              setShowLinkedMessage(false);
-              return;
-            }
-          }
-        }
-        
-        if (data && Array.isArray(data)) {
-          setLinkedAccounts(data);
-          console.log('Linked accounts:', data);
-          setShowLinkedMessage(data.length === 0);
-        } else {
-          setShowLinkedMessage(true);
-        }
-      } catch (error) {
-        console.error('Error with RPC call:', error);
-        setShowLinkedMessage(true);
-      }
-    } catch (error) {
-      console.error('Error loading linked accounts:', error);
-      setShowLinkedMessage(true);
-    }
-  };
-
-  const fetchWalletData = async () => {
+  // Use useCallback to memoize the fetchWalletData function
+  const fetchWalletData = useCallback(async () => {
     setIsLoading(true);
     
     try {
@@ -132,7 +85,55 @@ export const useWalletData = (isActive: boolean, userId: string | undefined) => 
     } finally {
       setIsLoading(false);
     }
+  }, []);
+
+  const fetchLinkedAccounts = async () => {
+    try {
+      try {
+        const { data, error } = await supabase.rpc('get_linked_users');
+        
+        if (error) {
+          console.error('Error fetching linked accounts:', error);
+          
+          if (error.message.includes('Could not find the function')) {
+            const { data: relationships, error: relError } = await supabase
+              .from('user_relationships')
+              .select('*')
+              .eq('user_id', userId);
+              
+            if (!relError && relationships && relationships.length > 0) {
+              setLinkedAccounts([
+                { email: 'usuário vinculado', relationship: 'spouse' }
+              ]);
+              setShowLinkedMessage(false);
+              return;
+            }
+          }
+        }
+        
+        if (data && Array.isArray(data)) {
+          setLinkedAccounts(data);
+          console.log('Linked accounts:', data);
+          setShowLinkedMessage(data.length === 0);
+        } else {
+          setShowLinkedMessage(true);
+        }
+      } catch (error) {
+        console.error('Error with RPC call:', error);
+        setShowLinkedMessage(true);
+      }
+    } catch (error) {
+      console.error('Error loading linked accounts:', error);
+      setShowLinkedMessage(true);
+    }
   };
+
+  useEffect(() => {
+    if (isActive && userId) {
+      fetchLinkedAccounts();
+      fetchWalletData();
+    }
+  }, [isActive, userId, fetchWalletData]);
 
   const handlePayDebt = async (debtId: string) => {
     try {
@@ -160,12 +161,19 @@ export const useWalletData = (isActive: boolean, userId: string | undefined) => 
     }
   };
 
+  // Add the refreshWallets function
+  const refreshWallets = () => {
+    console.log('Refreshing wallet data...');
+    fetchWalletData();
+  };
+
   return {
     wallets,
     debts,
     isLoading,
     linkedAccounts,
     showLinkedMessage,
-    handlePayDebt
+    handlePayDebt,
+    refreshWallets // Export the refresh function
   };
 };
