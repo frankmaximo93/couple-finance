@@ -34,11 +34,13 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
       const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
       const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
       
-      // Fetch transactions that are due this month - fix the type error by using template literals
+      console.log(`Fetching bills from ${firstDay} to ${lastDay}`);
+      
+      // Fetch transactions that are due this month (including casal transactions)
       const { data, error } = await supabase
         .from('transactions')
         .select('*')
-        .or(`and(payment_method.eq.credit,due_date.gte.${firstDay},due_date.lte.${lastDay}),and(type.eq.expense,status.eq.pending),and(type.eq.income,status.eq.to_receive)`)
+        .or(`due_date.gte.${firstDay},due_date.lte.${lastDay},and(type.eq.expense,status.eq.pending),and(type.eq.income,status.eq.to_receive)`)
         .order('due_date', { ascending: true });
         
       if (error) {
@@ -46,14 +48,17 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
         toast.error('Não foi possível carregar as contas deste mês');
         setBills([]);
       } else {
+        console.log(`Found ${data?.length || 0} transactions for the month`);
+        
         // Transform transactions into bills
         const monthlyBills = (data || []).map(transaction => ({
           id: transaction.id,
-          description: transaction.description,
+          description: transaction.description + (transaction.split_expense ? ' (Compartilhado)' : ''),
           amount: parseFloat(String(transaction.amount)), // Convert to string first to fix type error
           dueDate: transaction.due_date || transaction.date,
           status: transaction.status as BillStatus,
-          responsibility: transaction.responsibility
+          responsibility: transaction.responsibility,
+          split_expense: transaction.split_expense
         }));
         
         setBills(monthlyBills);
@@ -184,7 +189,7 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {bills.map((bill) => (
-                      <tr key={`${bill.id}-${bill.description}`} className="hover:bg-gray-50">
+                      <tr key={`${bill.id}-${bill.description}`} className={`hover:bg-gray-50 ${(bill as any).split_expense ? 'bg-blue-50' : ''}`}>
                         <td className="py-2 px-3 whitespace-nowrap text-sm font-medium text-gray-900">{bill.description}</td>
                         <td className="py-2 px-3 whitespace-nowrap text-sm text-right font-medium">{formatCurrency(bill.amount)}</td>
                         <td className="py-2 px-3 whitespace-nowrap text-sm text-center text-gray-500">{formatDate(bill.dueDate)}</td>

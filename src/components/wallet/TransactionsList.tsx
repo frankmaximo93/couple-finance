@@ -16,6 +16,7 @@ type Transaction = {
   status: string;
   category_name?: string;
   parent_transaction_id?: string;
+  split_expense?: boolean;
 };
 
 type TransactionsListProps = {
@@ -66,13 +67,14 @@ const TransactionsList = ({ walletKey }: TransactionsListProps) => {
         
         const formattedTransactions = allTransactions.map(tx => ({
           id: tx.id,
-          description: tx.description + (tx.parent_transaction_id ? ' (Compartilhado)' : ''),
+          description: tx.description + (tx.parent_transaction_id || tx.split_expense ? ' (Compartilhado)' : ''),
           amount: parseFloat(String(tx.amount)), // Convert to string first to fix type error
           date: tx.date,
           type: tx.type,
           status: tx.status,
           category_name: tx.categories?.name || 'Sem categoria',
-          parent_transaction_id: tx.parent_transaction_id
+          parent_transaction_id: tx.parent_transaction_id,
+          split_expense: tx.split_expense
         }));
         
         // Sort transactions by date (newest first)
@@ -113,7 +115,7 @@ const TransactionsList = ({ walletKey }: TransactionsListProps) => {
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {transactions.map((transaction) => (
-                  <tr key={transaction.id} className={`hover:bg-gray-50 ${transaction.parent_transaction_id ? 'bg-blue-50' : ''}`}>
+                  <tr key={transaction.id} className={`hover:bg-gray-50 ${transaction.parent_transaction_id || transaction.split_expense ? 'bg-blue-50' : ''}`}>
                     <td className="py-2 px-3 whitespace-nowrap text-sm text-gray-500">{formatDate(transaction.date)}</td>
                     <td className="py-2 px-3 whitespace-nowrap text-sm font-medium text-gray-900">{transaction.description}</td>
                     <td className="py-2 px-3 whitespace-nowrap text-sm text-gray-500">{transaction.category_name}</td>

@@ -69,14 +69,14 @@ export const buildWalletData = (
   const categoryTotals: {[key: string]: number} = {};
   const billsMap: {[key: string]: Bill} = {};
   
-  // First pass: process regular transactions for this wallet
+  // First pass: process regular transactions for this wallet, including direct transactions and split ones
   transactions.forEach(transaction => {
-    // Only process transactions that belong to this wallet directly or through parent_transaction_id
+    // Process both direct and split transactions for this wallet
     if (transaction.responsibility === responsibility) {
       if (transaction.type === 'income') {
         // Only add to income/balance if it's received
         if (transaction.status === 'received') {
-          wallet.income += parseFloat(transaction.amount);
+          wallet.income += parseFloat(String(transaction.amount));
           wallet.balance += parseFloat(transaction.amount);
         }
         
