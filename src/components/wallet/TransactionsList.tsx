@@ -1,11 +1,16 @@
 
-import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { WalletPerson } from '@/integrations/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { formatCurrency, formatDate } from '@/utils/walletUtils';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { WalletPerson } from '@/integrations/supabase/client';
+
+type TransactionsListProps = {
+  walletKey: WalletPerson;
+  refreshWallets: () => void;
+};
 
 type Transaction = {
   id: string;
@@ -13,175 +18,207 @@ type Transaction = {
   amount: number;
   date: string;
   type: string;
-  status: string;
+  category_id?: string;
   category_name?: string;
-  parent_transaction_id?: string;
+  responsibility: string;
+  payment_method?: 'cash' | 'credit' | null;
+  status?: 'pending' | 'paid' | 'overdue';
   split_expense?: boolean;
-};
-
-type TransactionsListProps = {
-  walletKey: WalletPerson;
-  refreshWallets: () => void;
+  paid_by?: string;
 };
 
 const TransactionsList = ({ walletKey, refreshWallets }: TransactionsListProps) => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { user } = useAuth();
-
+  
   useEffect(() => {
     if (user) {
-      fetchTransactions();
-    }
-  }, [user, walletKey]);
-
-  const fetchTransactions = async () => {
-    setIsLoading(true);
-    try {
-      // Fetch individual transactions for this specific wallet
-      const { data, error } = await supabase
-        .from('transactions')
-        .select('*, categories(name)')
-        .eq('responsibility', walletKey)
-        .order('date', { ascending: false })
-        .limit(10);
-
-      if (error) {
-        console.error('Erro ao buscar transações:', error);
-        toast.error('Não foi possível carregar as transações');
-        setTransactions([]);
-      } else {
-        // Also fetch transactions that were created as half-split from couple expenses
-        const { data: sharedData, error: sharedError } = await supabase
-          .from('transactions')
-          .select('*, categories(name)')
-          .eq('responsibility', walletKey)
-          .not('parent_transaction_id', 'is', null)
-          .order('date', { ascending: false });
-
-        if (sharedError) {
-          console.error('Erro ao buscar transações compartilhadas:', sharedError);
+      const fetchTransactions = async () => {
+        setIsLoading(true);
+        try {
+          const { data, error } = await supabase
+            .from('transactions')
+            .select('*, categories(name)')
+            .eq('responsibility', walletKey)
+            .order('date', { ascending: false });
+            
+          if (error) {
+            console.error('Error fetching transactions:', error);
+            toast.error('Erro ao carregar transações');
+            setTransactions([]);
+          } else {
+            console.log(`Fetched ${data.length} transactions for ${walletKey}`);
+            
+            // Transform the data to match the Transaction type
+            const formattedTransactions: Transaction[] = data.map((t: any) => ({
+              id: t.id,
+              description: t.description,
+              amount: t.amount,
+              date: t.date,
+              type: t.type,
+              category_id: t.category_id,
+              category_name: t.categories?.name,
+              responsibility: t.responsibility,
+              payment_method: t.payment_method,
+              status: t.status || 'pending',
+              split_expense: t.split_expense,
+              paid_by: t.paid_by
+            }));
+            
+            setTransactions(formattedTransactions);
+          }
+        } catch (error) {
+          console.error('Error fetching transactions:', error);
+          toast.error('Erro ao carregar transações');
+          setTransactions([]);
+        } finally {
+          setIsLoading(false);
         }
-
-        // Combine both regular and shared transactions
-        const allTransactions = [...(data || []), ...(sharedData || [])];
+      };
+      
+      fetchTransactions();
+      
+      // Set up real-time subscription for this wallet's transactions
+      const subscription = supabase
+        .channel(`transactions_${walletKey}`)
+        .on('postgres_changes', 
+          { 
+            event: '*', 
+            schema: 'public', 
+            table: 'transactions',
+            filter: `responsibility=eq.${walletKey}`
+          }, 
+          (payload) => {
+            console.log('Transaction change detected:', payload);
+            refreshWallets();
+            
+            // Refresh the transactions list
+            supabase
+              .from('transactions')
+              .select('*, categories(name)')
+              .eq('responsibility', walletKey)
+              .order('date', { ascending: false })
+              .then(({ data, error }) => {
+                if (!error && data) {
+                  const formattedTransactions: Transaction[] = data.map((t: any) => ({
+                    id: t.id,
+                    description: t.description,
+                    amount: t.amount,
+                    date: t.date,
+                    type: t.type,
+                    category_id: t.category_id,
+                    category_name: t.categories?.name,
+                    responsibility: t.responsibility,
+                    payment_method: t.payment_method,
+                    status: t.status || 'pending',
+                    split_expense: t.split_expense,
+                    paid_by: t.paid_by
+                  }));
+                  
+                  setTransactions(formattedTransactions);
+                }
+              });
+          }
+        )
+        .subscribe();
         
-        const formattedTransactions = allTransactions.map(tx => ({
-          id: tx.id,
-          description: tx.description + (tx.parent_transaction_id || tx.split_expense ? ' (Compartilhado)' : ''),
-          amount: parseFloat(String(tx.amount)), // Convert to string first to fix type error
-          date: tx.date,
-          type: tx.type,
-          status: tx.status,
-          category_name: tx.categories?.name || 'Sem categoria',
-          parent_transaction_id: tx.parent_transaction_id,
-          split_expense: tx.split_expense
-        }));
-        
-        // Sort transactions by date (newest first)
-        formattedTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        
-        setTransactions(formattedTransactions);
-        
-        // Refresh wallet data to ensure balances are up to date
-        refreshWallets();
-      }
-    } catch (error) {
-      console.error('Erro ao processar transações:', error);
-      toast.error('Erro ao processar as transações');
-      setTransactions([]);
-    } finally {
-      setIsLoading(false);
+      return () => {
+        subscription.unsubscribe();
+      };
     }
+  }, [user, walletKey, refreshWallets]);
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('pt-BR');
   };
 
-  // Set up a subscription to listen for changes in the transactions table
-  useEffect(() => {
-    const channel = supabase
-      .channel('transactions-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'transactions'
-        },
-        (payload) => {
-          console.log('Transaction changed:', payload);
-          fetchTransactions();
-          refreshWallets();
-        }
-      )
-      .subscribe();
+  const getTypeLabel = (type: string) => {
+    return type === 'income' ? 'Receita' : 'Despesa';
+  };
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [walletKey]);
+  const getSplitInfo = (transaction: Transaction) => {
+    if (!transaction.split_expense) return '';
+    
+    const paidBy = transaction.paid_by === 'franklin' ? 'Franklim' : 'Michele';
+    const owedBy = transaction.paid_by === 'franklin' ? 'Michele' : 'Franklim';
+    const halfAmount = (transaction.amount / 2).toFixed(2);
+    
+    return `${paidBy} pagou (${owedBy} deve R$ ${halfAmount})`;
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Transações recentes</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex justify-center items-center h-32">
+            <div className="animate-pulse-shadow h-8 w-8 rounded-full bg-blue-500"></div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Transações Individuais</CardTitle>
+        <CardTitle className="text-lg">Transações recentes</CardTitle>
       </CardHeader>
       <CardContent>
-        {isLoading ? (
-          <div className="flex justify-center py-8">
-            <div className="animate-pulse-shadow h-8 w-8 rounded-full bg-blue-500"></div>
+        {transactions.length === 0 ? (
+          <div className="text-center py-6">
+            <p className="text-gray-500">Nenhuma transação registrada ainda.</p>
           </div>
-        ) : transactions.length > 0 ? (
-          <div className="overflow-auto max-h-[400px]">
-            <table className="min-w-full">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
-                  <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Descrição</th>
-                  <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Categoria</th>
-                  <th className="text-right py-2 px-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Valor</th>
-                  <th className="text-center py-2 px-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="py-2 text-left text-xs font-medium text-gray-500 uppercase">Descrição</th>
+                  <th className="py-2 text-left text-xs font-medium text-gray-500 uppercase">Valor</th>
+                  <th className="py-2 text-left text-xs font-medium text-gray-500 uppercase">Data</th>
+                  <th className="py-2 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
+                  <th className="py-2 text-left text-xs font-medium text-gray-500 uppercase">Categoria</th>
+                  <th className="py-2 text-left text-xs font-medium text-gray-500 uppercase">Divisão</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
-                {transactions.map((transaction) => (
-                  <tr key={transaction.id} className={`hover:bg-gray-50 ${transaction.parent_transaction_id || transaction.split_expense ? 'bg-blue-50' : ''}`}>
-                    <td className="py-2 px-3 whitespace-nowrap text-sm text-gray-500">{formatDate(transaction.date)}</td>
-                    <td className="py-2 px-3 whitespace-nowrap text-sm font-medium text-gray-900">{transaction.description}</td>
-                    <td className="py-2 px-3 whitespace-nowrap text-sm text-gray-500">{transaction.category_name}</td>
-                    <td className={`py-2 px-3 whitespace-nowrap text-sm text-right font-medium ${transaction.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
-                      {transaction.type === 'income' ? '+' : '-'} {formatCurrency(transaction.amount)}
+              <tbody>
+                {transactions.slice(0, 5).map((transaction) => (
+                  <tr key={transaction.id} className="border-b hover:bg-gray-50">
+                    <td className="py-2 text-sm">{transaction.description}</td>
+                    <td className={`py-2 text-sm ${transaction.type === 'income' ? 'text-finance-income font-medium' : 'text-finance-expense font-medium'}`}>
+                      R$ {transaction.amount.toFixed(2)}
                     </td>
-                    <td className="py-2 px-3 whitespace-nowrap text-center">
-                      <span 
-                        className={`text-xs px-2 py-1 rounded-full ${
-                          transaction.status === 'paid' || transaction.status === 'received'
-                            ? 'bg-green-100 text-green-800' 
-                            : transaction.status === 'overdue'
-                              ? 'bg-red-100 text-red-800'
-                              : transaction.status === 'to_receive'
-                                ? 'bg-blue-100 text-blue-800'
-                                : 'bg-yellow-100 text-yellow-800'
-                        }`}
-                      >
-                        {transaction.status === 'paid' 
-                          ? 'Pago' 
-                          : transaction.status === 'overdue'
-                            ? 'Atrasado'
-                            : transaction.status === 'to_receive'
-                              ? 'A Receber'
-                              : transaction.status === 'received'
-                                ? 'Recebido'
-                                : 'Pendente'}
+                    <td className="py-2 text-sm">{formatDate(transaction.date)}</td>
+                    <td className="py-2 text-sm">
+                      <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        transaction.type === 'income' 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {getTypeLabel(transaction.type)}
                       </span>
                     </td>
+                    <td className="py-2 text-sm">{transaction.category_name || 'Sem categoria'}</td>
+                    <td className="py-2 text-sm">{getSplitInfo(transaction)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            
+            {transactions.length > 5 && (
+              <div className="mt-4 text-center">
+                <Button variant="outline" size="sm">
+                  Ver todas ({transactions.length})
+                </Button>
+              </div>
+            )}
           </div>
-        ) : (
-          <p className="text-center py-8 text-gray-500">
-            Não há transações individuais para esta carteira.
-          </p>
         )}
       </CardContent>
     </Card>

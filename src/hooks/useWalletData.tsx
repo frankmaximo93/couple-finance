@@ -16,6 +16,8 @@ export const useWalletData = (isActive: boolean, userId: string | undefined) => 
     setIsLoading(true);
     
     try {
+      console.log('Fetching wallet data...');
+      
       // Try to fetch real transactions data
       const { data: transactionsData, error: transactionsError } = await supabase
         .from('transactions')
@@ -26,6 +28,8 @@ export const useWalletData = (isActive: boolean, userId: string | undefined) => 
         toast.error('Erro ao carregar transações');
         setWallets({});
       } else {
+        console.log(`Fetched ${transactionsData?.length || 0} transactions`);
+        
         // Fetch categories for mapping
         const { data: categoriesData, error: categoriesError } = await supabase
           .from('categories')
@@ -54,27 +58,35 @@ export const useWalletData = (isActive: boolean, userId: string | undefined) => 
       }
       
       // Fetch real debts data
-      const { data: debtsData, error: debtsError } = await supabase
-        .from('debts')
-        .select('*, transactions(description)')
-        .order('created_at', { ascending: false });
-        
-      if (debtsError) {
-        console.error('Error fetching debts:', debtsError);
-        setDebts([]);
-      } else if (debtsData && debtsData.length > 0) {
-        const processedDebts: DebtInfo[] = debtsData.map((debt: any) => ({
-          id: debt.id,
-          amount: debt.amount,
-          owedTo: debt.owed_to as WalletPerson,
-          owed_to: debt.owed_to as WalletPerson,
-          owed_by: debt.owed_by as WalletPerson,
-          description: debt.transactions?.description || 'Dívida',
-          is_paid: debt.is_paid
-        }));
-        
-        setDebts(processedDebts);
-      } else {
+      try {
+        const { data: debtsData, error: debtsError } = await supabase
+          .from('debts')
+          .select('*, transactions(description)')
+          .order('created_at', { ascending: false });
+          
+        if (debtsError) {
+          console.error('Error fetching debts:', debtsError);
+          setDebts([]);
+        } else if (debtsData && debtsData.length > 0) {
+          console.log(`Fetched ${debtsData.length} debts`);
+          
+          const processedDebts: DebtInfo[] = debtsData.map((debt: any) => ({
+            id: debt.id,
+            amount: debt.amount,
+            owedTo: debt.owed_to as WalletPerson,
+            owed_to: debt.owed_to as WalletPerson,
+            owed_by: debt.owed_by as WalletPerson,
+            description: debt.transactions?.description || 'Dívida',
+            is_paid: debt.is_paid
+          }));
+          
+          setDebts(processedDebts);
+        } else {
+          console.log('No debts found');
+          setDebts([]);
+        }
+      } catch (debtError) {
+        console.error('Error in debt fetching process:', debtError);
         setDebts([]);
       }
     } catch (error) {
@@ -132,6 +144,35 @@ export const useWalletData = (isActive: boolean, userId: string | undefined) => 
     if (isActive && userId) {
       fetchLinkedAccounts();
       fetchWalletData();
+      
+      // Set up real-time subscription for transactions
+      const transactionsSubscription = supabase
+        .channel('transactions_changes')
+        .on('postgres_changes', 
+          { event: '*', schema: 'public', table: 'transactions' }, 
+          () => {
+            console.log('Transactions updated, refreshing wallet data');
+            fetchWalletData();
+          }
+        )
+        .subscribe();
+        
+      // Set up real-time subscription for debts
+      const debtsSubscription = supabase
+        .channel('debts_changes')
+        .on('postgres_changes', 
+          { event: '*', schema: 'public', table: 'debts' }, 
+          () => {
+            console.log('Debts updated, refreshing wallet data');
+            fetchWalletData();
+          }
+        )
+        .subscribe();
+        
+      return () => {
+        transactionsSubscription.unsubscribe();
+        debtsSubscription.unsubscribe();
+      };
     }
   }, [isActive, userId, fetchWalletData]);
 
@@ -145,16 +186,22 @@ export const useWalletData = (isActive: boolean, userId: string | undefined) => 
           
         if (error) {
           console.error('Error updating debt in database:', error);
+          throw error;
         }
       } catch (dbError) {
         console.error('Error with Supabase operation:', dbError);
+        throw dbError;
       }
       
+      // Update local state
       setDebts(debts.map(debt => 
         debt.id === debtId ? { ...debt, is_paid: true } : debt
       ));
       
       toast.success('Dívida marcada como paga!');
+      
+      // Refresh wallet data to reflect the changes
+      fetchWalletData();
     } catch (error) {
       console.error('Erro ao pagar dívida:', error);
       toast.error('Erro ao atualizar status da dívida');
@@ -174,6 +221,6 @@ export const useWalletData = (isActive: boolean, userId: string | undefined) => 
     linkedAccounts,
     showLinkedMessage,
     handlePayDebt,
-    refreshWallets // Export the refresh function
+    refreshWallets
   };
 };
