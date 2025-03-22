@@ -261,7 +261,31 @@ export const useWalletData = (isActive: boolean, userId: string | undefined) => 
         throw debtError;
       }
       
-      const debt = debtData as DebtInfo;
+      // Create a properly formed DebtInfo object from the database result
+      const debt: DebtInfo = {
+        id: debtData.id,
+        amount: debtData.amount,
+        paid_amount: debtData.paid_amount || 0,
+        owedTo: debtData.owed_to as WalletPerson,
+        owed_to: debtData.owed_to as WalletPerson,
+        owed_by: debtData.owed_by as WalletPerson,
+        description: 'Dívida', // Default description if none available
+        is_paid: debtData.is_paid
+      };
+      
+      // If we have a transaction_id, try to get the transaction description
+      if (debtData.transaction_id) {
+        const { data: txData } = await supabase
+          .from('transactions')
+          .select('description')
+          .eq('id', debtData.transaction_id)
+          .single();
+          
+        if (txData) {
+          debt.description = txData.description;
+        }
+      }
+      
       const isFullPayment = !amount || amount >= (debt.amount - (debt.paid_amount || 0));
       
       try {
