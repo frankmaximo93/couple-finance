@@ -61,6 +61,7 @@ export const handleCasalTransaction = async (transaction: TransactionData, trans
       }
     }
 
+    console.log('Transação dividida com sucesso:', individualTransactions);
     return true;
   } catch (error) {
     console.error('Erro ao processar divisão de transação:', error);
@@ -80,6 +81,15 @@ export const createDebtRecord = async (transaction: TransactionData, transaction
 
     const owedBy = transaction.paid_by === 'franklin' ? 'michele' : 'franklin';
     const halfAmount = parseFloat((transaction.amount / 2).toFixed(2));
+    
+    console.log('Criando dívida:', {
+      transaction_id: transactionId,
+      owed_by: owedBy,
+      owed_to: transaction.paid_by,
+      amount: halfAmount,
+      is_paid: false,
+      paid_amount: 0
+    });
     
     // Create debt record
     const { error } = await supabase
@@ -111,6 +121,8 @@ export const createDebtRecord = async (transaction: TransactionData, transaction
  */
 export const saveTransaction = async (transaction: TransactionData, isUpdate = false, transactionId?: string): Promise<boolean> => {
   try {
+    console.log('Salvando transação:', transaction, 'isUpdate:', isUpdate, 'transactionId:', transactionId);
+    
     // Create or update the main transaction
     let response;
     
@@ -146,6 +158,7 @@ export const saveTransaction = async (transaction: TransactionData, isUpdate = f
     
     // If it's a 'casal' transaction, split it and create debt if necessary
     if (transaction.responsibility === 'casal' && createdTransactionId) {
+      console.log('Processando transação do casal...');
       const splitSuccess = await handleCasalTransaction(transaction, createdTransactionId);
       
       if (splitSuccess && transaction.split_expense && transaction.paid_by) {

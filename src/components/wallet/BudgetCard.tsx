@@ -10,6 +10,7 @@ type BudgetCardProps = {
 
 const BudgetCard = ({ wallet }: BudgetCardProps) => {
   const savingsProgress = wallet.savings_goal > 0 ? (wallet.balance / wallet.savings_goal) * 100 : 0;
+  const budgetUsedPercentage = wallet.income > 0 ? Math.round((wallet.expenses / wallet.income) * 100) : 0;
   
   return (
     <Card>
@@ -21,11 +22,11 @@ const BudgetCard = ({ wallet }: BudgetCardProps) => {
           <div className="flex justify-between mb-1">
             <span className="text-sm text-gray-500">Gastos vs. Receitas</span>
             <span className="text-sm font-medium">
-              {wallet.income > 0 ? Math.round((wallet.expenses / wallet.income) * 100) : 0}%
+              {budgetUsedPercentage}%
             </span>
           </div>
           <Progress 
-            value={wallet.income > 0 ? (wallet.expenses / wallet.income) * 100 : 0} 
+            value={budgetUsedPercentage} 
             className="h-2 bg-gray-200"
           />
         </div>

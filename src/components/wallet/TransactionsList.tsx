@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { WalletPerson } from '@/integrations/supabase/client';
+import { formatCurrency } from '@/utils/walletUtils';
 
 type TransactionsListProps = {
   walletKey: WalletPerson;
@@ -30,6 +31,7 @@ type Transaction = {
 const TransactionsList = ({ walletKey, refreshWallets }: TransactionsListProps) => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showAllTransactions, setShowAllTransactions] = useState(false);
   const { user } = useAuth();
   
   useEffect(() => {
@@ -48,7 +50,13 @@ const TransactionsList = ({ walletKey, refreshWallets }: TransactionsListProps) 
             toast.error('Erro ao carregar transações');
             setTransactions([]);
           } else {
-            console.log(`Fetched ${data.length} transactions for ${walletKey}`);
+            console.log(`Fetched ${data?.length || 0} transactions for ${walletKey}`);
+            
+            if (!data || data.length === 0) {
+              setTransactions([]);
+              setIsLoading(false);
+              return;
+            }
             
             // Transform the data to match the Transaction type
             const formattedTransactions: Transaction[] = data.map((t: any) => ({
@@ -164,6 +172,8 @@ const TransactionsList = ({ walletKey, refreshWallets }: TransactionsListProps) 
     );
   }
 
+  const transactionsToShow = showAllTransactions ? transactions : transactions.slice(0, 5);
+
   return (
     <Card>
       <CardHeader>
@@ -188,11 +198,11 @@ const TransactionsList = ({ walletKey, refreshWallets }: TransactionsListProps) 
                 </tr>
               </thead>
               <tbody>
-                {transactions.slice(0, 5).map((transaction) => (
+                {transactionsToShow.map((transaction) => (
                   <tr key={transaction.id} className="border-b hover:bg-gray-50">
                     <td className="py-2 text-sm">{transaction.description}</td>
                     <td className={`py-2 text-sm ${transaction.type === 'income' ? 'text-finance-income font-medium' : 'text-finance-expense font-medium'}`}>
-                      R$ {transaction.amount.toFixed(2)}
+                      {formatCurrency(transaction.amount)}
                     </td>
                     <td className="py-2 text-sm">{formatDate(transaction.date)}</td>
                     <td className="py-2 text-sm">
@@ -213,8 +223,12 @@ const TransactionsList = ({ walletKey, refreshWallets }: TransactionsListProps) 
             
             {transactions.length > 5 && (
               <div className="mt-4 text-center">
-                <Button variant="outline" size="sm">
-                  Ver todas ({transactions.length})
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setShowAllTransactions(!showAllTransactions)}
+                >
+                  {showAllTransactions ? 'Mostrar menos' : `Ver todas (${transactions.length})`}
                 </Button>
               </div>
             )}
