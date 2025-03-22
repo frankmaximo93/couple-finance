@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { WalletData, DebtInfo, buildWalletData } from '@/utils/walletUtils';
-import { WalletPerson, supabase } from '@/integrations/supabase/client';
+import { WalletPerson, supabase, isSessionActive } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 export const useWalletData = (isActive: boolean, userId: string | undefined) => {
@@ -10,9 +10,27 @@ export const useWalletData = (isActive: boolean, userId: string | undefined) => 
   const [isLoading, setIsLoading] = useState(true);
   const [linkedAccounts, setLinkedAccounts] = useState<Array<{ email: string, relationship: string }>>([]);
   const [showLinkedMessage, setShowLinkedMessage] = useState<boolean>(false);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+
+  // Check authentication status
+  useEffect(() => {
+    const checkAuth = async () => {
+      const isActive = await isSessionActive();
+      setIsAuthenticated(isActive);
+      console.log('Authentication status:', isActive ? 'Authenticated' : 'Not authenticated');
+    };
+    
+    checkAuth();
+  }, []);
 
   // Use useCallback to memoize the fetchWalletData function
   const fetchWalletData = useCallback(async () => {
+    if (!isAuthenticated) {
+      console.log('Not authenticated, skipping data fetch');
+      setIsLoading(false);
+      return;
+    }
+    
     setIsLoading(true);
     
     try {
@@ -97,9 +115,14 @@ export const useWalletData = (isActive: boolean, userId: string | undefined) => 
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isAuthenticated]);
 
   const fetchLinkedAccounts = async () => {
+    if (!isAuthenticated || !userId) {
+      console.log('Not authenticated or no userId, skipping linked accounts fetch');
+      return;
+    }
+    
     try {
       try {
         const { data, error } = await supabase.rpc('get_linked_users');
@@ -141,7 +164,7 @@ export const useWalletData = (isActive: boolean, userId: string | undefined) => 
   };
 
   useEffect(() => {
-    if (isActive && userId) {
+    if (isActive && isAuthenticated && userId) {
       fetchLinkedAccounts();
       fetchWalletData();
       
@@ -174,9 +197,14 @@ export const useWalletData = (isActive: boolean, userId: string | undefined) => 
         debtsSubscription.unsubscribe();
       };
     }
-  }, [isActive, userId, fetchWalletData]);
+  }, [isActive, userId, isAuthenticated, fetchWalletData]);
 
   const handlePayDebt = async (debtId: string) => {
+    if (!isAuthenticated) {
+      toast.error('Você precisa estar conectado para realizar esta ação');
+      return;
+    }
+    
     try {
       try {
         const { error } = await supabase
@@ -221,6 +249,7 @@ export const useWalletData = (isActive: boolean, userId: string | undefined) => 
     linkedAccounts,
     showLinkedMessage,
     handlePayDebt,
-    refreshWallets
+    refreshWallets,
+    isAuthenticated
   };
 };
