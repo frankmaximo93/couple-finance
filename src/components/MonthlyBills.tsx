@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Bill, BillStatus, formatCurrency, formatDate } from '@/utils/walletUtils';
@@ -50,7 +49,7 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
       } else {
         console.log(`Found ${data?.length || 0} transactions for the month`);
         
-        // Transform transactions into bills
+        // Transform transactions into bills with proper type casting
         const monthlyBills = (data || []).map(transaction => ({
           id: transaction.id,
           description: transaction.description + (transaction.split_expense ? ' (Compartilhado)' : ''),
@@ -59,7 +58,7 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
           status: transaction.status as BillStatus,
           responsibility: transaction.responsibility,
           split_expense: transaction.split_expense,
-          type: transaction.type // Add transaction type to the bill object
+          type: transaction.type as 'income' | 'expense' // Explicitly cast to the union type
         }));
         
         setBills(monthlyBills);
@@ -97,13 +96,13 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
   // Calculate totals
   const getTotalIncome = () => {
     return bills
-      .filter(bill => (bill as any).type === 'income')
+      .filter(bill => bill.type === 'income')
       .reduce((sum, bill) => sum + bill.amount, 0);
   };
 
   const getTotalExpenses = () => {
     return bills
-      .filter(bill => (bill as any).type === 'expense')
+      .filter(bill => bill.type === 'expense')
       .reduce((sum, bill) => sum + bill.amount, 0);
   };
 
@@ -205,13 +204,13 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
                     {bills.map((bill) => (
                       <tr 
                         key={`${bill.id}-${bill.description}`} 
-                        className={`hover:bg-gray-50 ${(bill as any).split_expense ? 'bg-blue-50' : ''} ${(bill as any).type === 'income' ? 'bg-green-50' : ''}`}
+                        className={`hover:bg-gray-50 ${bill.split_expense ? 'bg-blue-50' : ''} ${bill.type === 'income' ? 'bg-green-50' : ''}`}
                       >
                         <td className="py-2 px-3 whitespace-nowrap text-sm font-medium text-gray-900">{bill.description}</td>
                         <td className="py-2 px-3 whitespace-nowrap text-sm text-right font-medium">{formatCurrency(bill.amount)}</td>
                         <td className="py-2 px-3 whitespace-nowrap text-sm text-center text-gray-500">{formatDate(bill.dueDate)}</td>
                         <td className="py-2 px-3 whitespace-nowrap text-center">{getStatusBadge(bill.status)}</td>
-                        <td className="py-2 px-3 whitespace-nowrap text-sm text-center text-gray-500 capitalize">{(bill as any).responsibility}</td>
+                        <td className="py-2 px-3 whitespace-nowrap text-sm text-center text-gray-500 capitalize">{bill.responsibility}</td>
                         <td className="py-2 px-3 whitespace-nowrap text-center">{getStatusActions(bill as Bill & { id?: string, responsibility?: string })}</td>
                       </tr>
                     ))}
@@ -226,7 +225,7 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
                   <span className="font-medium">Total Despesas:</span> {formatCurrency(getTotalExpenses())}
                 </div>
                 <div className="text-sm bg-gray-50 p-3 rounded">
-                  <span className="font-medium">Total Geral:</span> {formatCurrency(bills.reduce((sum, bill) => sum + bill.amount, 0))}
+                  <span className="font-medium">Total Geral:</span> {formatCurrency(getTotalIncome() - getTotalExpenses())}
                 </div>
               </div>
             </div>
