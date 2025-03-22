@@ -1,4 +1,3 @@
-
 import { WalletPerson } from '@/integrations/supabase/client';
 
 export type BillStatus = 'pending' | 'paid' | 'overdue' | 'to_receive' | 'received';
@@ -9,6 +8,7 @@ export type Bill = {
   dueDate: string;
   status: BillStatus;
   id?: string; // Add optional id property to Bill type
+  type?: 'income' | 'expense'; // Add optional type property to Bill type
 };
 
 export type CategoryData = {

@@ -58,7 +58,8 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
           dueDate: transaction.due_date || transaction.date,
           status: transaction.status as BillStatus,
           responsibility: transaction.responsibility,
-          split_expense: transaction.split_expense
+          split_expense: transaction.split_expense,
+          type: transaction.type // Add transaction type to the bill object
         }));
         
         setBills(monthlyBills);
@@ -91,6 +92,19 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
       console.error('Erro ao atualizar status da conta:', error);
       toast.error('Não foi possível atualizar o status');
     }
+  };
+
+  // Calculate totals
+  const getTotalIncome = () => {
+    return bills
+      .filter(bill => (bill as any).type === 'income')
+      .reduce((sum, bill) => sum + bill.amount, 0);
+  };
+
+  const getTotalExpenses = () => {
+    return bills
+      .filter(bill => (bill as any).type === 'expense')
+      .reduce((sum, bill) => sum + bill.amount, 0);
   };
 
   const getStatusBadge = (status: BillStatus) => {
@@ -189,7 +203,10 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {bills.map((bill) => (
-                      <tr key={`${bill.id}-${bill.description}`} className={`hover:bg-gray-50 ${(bill as any).split_expense ? 'bg-blue-50' : ''}`}>
+                      <tr 
+                        key={`${bill.id}-${bill.description}`} 
+                        className={`hover:bg-gray-50 ${(bill as any).split_expense ? 'bg-blue-50' : ''} ${(bill as any).type === 'income' ? 'bg-green-50' : ''}`}
+                      >
                         <td className="py-2 px-3 whitespace-nowrap text-sm font-medium text-gray-900">{bill.description}</td>
                         <td className="py-2 px-3 whitespace-nowrap text-sm text-right font-medium">{formatCurrency(bill.amount)}</td>
                         <td className="py-2 px-3 whitespace-nowrap text-sm text-center text-gray-500">{formatDate(bill.dueDate)}</td>
@@ -201,10 +218,16 @@ const MonthlyBills = ({ isActive }: MonthlyBillsProps) => {
                   </tbody>
                 </table>
               </div>
-              <div className="flex justify-end pt-2">
-                <p className="text-sm text-gray-600">
-                  <span className="font-medium">Total:</span> {formatCurrency(bills.reduce((sum, bill) => sum + bill.amount, 0))}
-                </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+                <div className="text-sm bg-green-50 p-3 rounded">
+                  <span className="font-medium">Total Receitas:</span> {formatCurrency(getTotalIncome())}
+                </div>
+                <div className="text-sm bg-red-50 p-3 rounded">
+                  <span className="font-medium">Total Despesas:</span> {formatCurrency(getTotalExpenses())}
+                </div>
+                <div className="text-sm bg-gray-50 p-3 rounded">
+                  <span className="font-medium">Total Geral:</span> {formatCurrency(bills.reduce((sum, bill) => sum + bill.amount, 0))}
+                </div>
               </div>
             </div>
           ) : (
