@@ -20,7 +20,7 @@ export function ResponsibilitySelect({ value, onChange, className }: Responsibil
           <SelectValue placeholder="Selecione a responsabilidade" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="franklin">Franklin</SelectItem>
+          <SelectItem value="franklin">Franklim</SelectItem>
           <SelectItem value="michele">Michele</SelectItem>
           <SelectItem value="casal">Casal (divide 50/50)</SelectItem>
         </SelectContent>

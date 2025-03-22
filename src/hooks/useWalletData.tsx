@@ -65,9 +65,38 @@ export const useWalletData = (isActive: boolean, userId: string | undefined) => 
           });
         }
         
+        // Fetch wallets data to get savings_goal
+        const { data: walletsData, error: walletsError } = await supabase
+          .from('wallets')
+          .select('*');
+          
+        if (walletsError) {
+          console.error('Error fetching wallets:', walletsError);
+        }
+        
+        const walletSettings: Record<string, { savings_goal: number }> = {};
+        if (walletsData) {
+          walletsData.forEach((wallet: any) => {
+            if (wallet.name.toLowerCase() === 'franklin') {
+              walletSettings['franklin'] = { savings_goal: wallet.savings_goal || 0 };
+            } else if (wallet.name.toLowerCase() === 'michele') {
+              walletSettings['michele'] = { savings_goal: wallet.savings_goal || 0 };
+            }
+          });
+        }
+        
         // Build wallet data from real transactions
         const franklinWallet = buildWalletData('franklin', transactionsData || [], categoryMap);
         const micheleWallet = buildWalletData('michele', transactionsData || [], categoryMap);
+        
+        // Add savings goal to wallets
+        if (walletSettings['franklin']) {
+          franklinWallet.savings_goal = walletSettings['franklin'].savings_goal;
+        }
+        
+        if (walletSettings['michele']) {
+          micheleWallet.savings_goal = walletSettings['michele'].savings_goal;
+        }
         
         setWallets({
           franklin: franklinWallet,
@@ -91,6 +120,7 @@ export const useWalletData = (isActive: boolean, userId: string | undefined) => 
           const processedDebts: DebtInfo[] = debtsData.map((debt: any) => ({
             id: debt.id,
             amount: debt.amount,
+            paid_amount: debt.paid_amount || 0,
             owedTo: debt.owed_to as WalletPerson,
             owed_to: debt.owed_to as WalletPerson,
             owed_by: debt.owed_by as WalletPerson,
@@ -192,41 +222,97 @@ export const useWalletData = (isActive: boolean, userId: string | undefined) => 
         )
         .subscribe();
         
+      // Set up real-time subscription for wallets
+      const walletsSubscription = supabase
+        .channel('wallets_changes')
+        .on('postgres_changes', 
+          { event: '*', schema: 'public', table: 'wallets' }, 
+          () => {
+            console.log('Wallets updated, refreshing wallet data');
+            fetchWalletData();
+          }
+        )
+        .subscribe();
+        
       return () => {
         transactionsSubscription.unsubscribe();
         debtsSubscription.unsubscribe();
+        walletsSubscription.unsubscribe();
       };
     }
   }, [isActive, userId, isAuthenticated, fetchWalletData]);
 
-  const handlePayDebt = async (debtId: string) => {
+  const handlePayDebt = async (debtId: string, amount?: number) => {
     if (!isAuthenticated) {
       toast.error('Você precisa estar conectado para realizar esta ação');
       return;
     }
     
     try {
+      // Get the debt details
+      const { data: debtData, error: debtError } = await supabase
+        .from('debts')
+        .select('*')
+        .eq('id', debtId)
+        .single();
+        
+      if (debtError) {
+        console.error('Error fetching debt details:', debtError);
+        throw debtError;
+      }
+      
+      const debt = debtData as DebtInfo;
+      const isFullPayment = !amount || amount >= (debt.amount - (debt.paid_amount || 0));
+      
       try {
-        const { error } = await supabase
-          .from('debts')
-          .update({ is_paid: true })
-          .eq('id', debtId);
+        if (isFullPayment) {
+          // Se for pagamento integral, marcamos como pago
+          const { error } = await supabase
+            .from('debts')
+            .update({ 
+              is_paid: true, 
+              paid_amount: debt.amount
+            })
+            .eq('id', debtId);
+            
+          if (error) {
+            console.error('Error updating debt in database:', error);
+            throw error;
+          }
           
-        if (error) {
-          console.error('Error updating debt in database:', error);
-          throw error;
+          // Update local state
+          setDebts(debts.map(d => 
+            d.id === debtId ? { ...d, is_paid: true, paid_amount: d.amount } : d
+          ));
+          
+          toast.success('Dívida marcada como paga!');
+        } else {
+          // Se for pagamento parcial, atualizamos o valor pago
+          const newPaidAmount = (debt.paid_amount || 0) + amount;
+          
+          const { error } = await supabase
+            .from('debts')
+            .update({ 
+              paid_amount: newPaidAmount
+            })
+            .eq('id', debtId);
+            
+          if (error) {
+            console.error('Error updating debt in database:', error);
+            throw error;
+          }
+          
+          // Update local state
+          setDebts(debts.map(d => 
+            d.id === debtId ? { ...d, paid_amount: newPaidAmount } : d
+          ));
+          
+          toast.success('Pagamento parcial registrado!');
         }
       } catch (dbError) {
         console.error('Error with Supabase operation:', dbError);
         throw dbError;
       }
-      
-      // Update local state
-      setDebts(debts.map(debt => 
-        debt.id === debtId ? { ...debt, is_paid: true } : debt
-      ));
-      
-      toast.success('Dívida marcada como paga!');
       
       // Refresh wallet data to reflect the changes
       fetchWalletData();

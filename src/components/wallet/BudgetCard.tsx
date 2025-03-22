@@ -9,6 +9,8 @@ type BudgetCardProps = {
 };
 
 const BudgetCard = ({ wallet }: BudgetCardProps) => {
+  const savingsProgress = wallet.savings_goal > 0 ? (wallet.balance / wallet.savings_goal) * 100 : 0;
+  
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -27,6 +29,30 @@ const BudgetCard = ({ wallet }: BudgetCardProps) => {
             className="h-2 bg-gray-200"
           />
         </div>
+        
+        {wallet.savings_goal > 0 && (
+          <div className="mb-6">
+            <div className="flex justify-between mb-1">
+              <span className="text-sm text-gray-500">Meta de Economia</span>
+              <span className="text-sm font-medium">
+                {Math.min(100, Math.round(savingsProgress))}%
+              </span>
+            </div>
+            <Progress 
+              value={Math.min(100, savingsProgress)} 
+              className="h-2 bg-gray-200"
+            />
+            <div className="flex justify-between mt-1">
+              <span className="text-xs text-gray-500">
+                {formatCurrency(wallet.balance)} / {formatCurrency(wallet.savings_goal)}
+              </span>
+              <span className="text-xs text-gray-500">
+                {wallet.balance >= wallet.savings_goal ? 'Meta atingida!' : 'Em progresso'}
+              </span>
+            </div>
+          </div>
+        )}
+        
         <div>
           <p className="text-sm text-gray-500 mb-1">Consumo total</p>
           <p className="text-xl font-medium text-finance-expense">{formatCurrency(wallet.expenses)}</p>

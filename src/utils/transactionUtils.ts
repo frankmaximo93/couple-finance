@@ -70,6 +70,43 @@ export const handleCasalTransaction = async (transaction: TransactionData, trans
 };
 
 /**
+ * Creates a debt record between two people when one person pays for both
+ */
+export const createDebtRecord = async (transaction: TransactionData, transactionId: string): Promise<boolean> => {
+  try {
+    if (!transaction.split_expense || !transaction.paid_by || transaction.responsibility !== 'casal') {
+      return true;
+    }
+
+    const owedBy = transaction.paid_by === 'franklin' ? 'michele' : 'franklin';
+    const halfAmount = parseFloat((transaction.amount / 2).toFixed(2));
+    
+    // Create debt record
+    const { error } = await supabase
+      .from('debts')
+      .insert({
+        transaction_id: transactionId,
+        owed_by: owedBy,
+        owed_to: transaction.paid_by,
+        amount: halfAmount,
+        is_paid: false,
+        paid_amount: 0
+      });
+      
+    if (error) {
+      console.error('Erro ao criar registro de dívida:', error);
+      throw error;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Erro ao criar registro de dívida:', error);
+    toast.error('Erro ao registrar dívida entre o casal');
+    return false;
+  }
+};
+
+/**
  * Creates or updates a transaction with automatic splitting if it's a 'casal' transaction
  */
 export const saveTransaction = async (transaction: TransactionData, isUpdate = false, transactionId?: string): Promise<boolean> => {
@@ -107,9 +144,15 @@ export const saveTransaction = async (transaction: TransactionData, isUpdate = f
     // Get the ID of the transaction we just created/updated
     const createdTransactionId = isUpdate ? transactionId : response.data?.[0]?.id;
     
-    // If it's a 'casal' transaction, split it
+    // If it's a 'casal' transaction, split it and create debt if necessary
     if (transaction.responsibility === 'casal' && createdTransactionId) {
-      return await handleCasalTransaction(transaction, createdTransactionId);
+      const splitSuccess = await handleCasalTransaction(transaction, createdTransactionId);
+      
+      if (splitSuccess && transaction.split_expense && transaction.paid_by) {
+        await createDebtRecord(transaction, createdTransactionId);
+      }
+      
+      return splitSuccess;
     }
     
     return true;

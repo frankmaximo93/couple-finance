@@ -38,6 +38,7 @@ export type Database = {
           is_paid: boolean | null
           owed_by: string
           owed_to: string
+          paid_amount: number | null
           payment_date: string | null
           transaction_id: string | null
         }
@@ -48,6 +49,7 @@ export type Database = {
           is_paid?: boolean | null
           owed_by: string
           owed_to: string
+          paid_amount?: number | null
           payment_date?: string | null
           transaction_id?: string | null
         }
@@ -58,6 +60,7 @@ export type Database = {
           is_paid?: boolean | null
           owed_by?: string
           owed_to?: string
+          paid_amount?: number | null
           payment_date?: string | null
           transaction_id?: string | null
         }
@@ -200,6 +203,7 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          savings_goal: number | null
           user_id: string
         }
         Insert: {
@@ -207,6 +211,7 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          savings_goal?: number | null
           user_id: string
         }
         Update: {
@@ -214,6 +219,7 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          savings_goal?: number | null
           user_id?: string
         }
         Relationships: []

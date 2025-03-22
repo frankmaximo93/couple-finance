@@ -24,11 +24,13 @@ export type WalletData = {
   expenses: number;
   bills: Bill[];
   categories: CategoryData[];
+  savings_goal: number;
 };
 
 export type DebtInfo = {
   id: string;
   amount: number;
+  paid_amount?: number;
   owedTo: WalletPerson;
   owed_to: WalletPerson; // Keep both properties for compatibility
   owed_by: WalletPerson;
@@ -59,7 +61,8 @@ export const buildWalletData = (
     income: 0,
     expenses: 0,
     bills: [],
-    categories: []
+    categories: [],
+    savings_goal: 0
   };
   
   if (!transactions || transactions.length === 0) {
@@ -142,13 +145,21 @@ export const buildWalletData = (
 export const getTotalOwedByPerson = (debts: DebtInfo[], person: WalletPerson): number => {
   return debts
     .filter(debt => debt.owed_by === person && !debt.is_paid)
-    .reduce((total, debt) => total + debt.amount, 0);
+    .reduce((total, debt) => {
+      const paidAmount = debt.paid_amount || 0;
+      const remainingAmount = debt.amount - paidAmount;
+      return total + remainingAmount;
+    }, 0);
 };
 
 export const getTotalOwedToPerson = (debts: DebtInfo[], person: WalletPerson): number => {
   return debts
     .filter(debt => debt.owed_to === person && !debt.is_paid)
-    .reduce((total, debt) => total + debt.amount, 0);
+    .reduce((total, debt) => {
+      const paidAmount = debt.paid_amount || 0;
+      const remainingAmount = debt.amount - paidAmount;
+      return total + remainingAmount;
+    }, 0);
 };
 
 export const getNetDebtAmount = (debts: DebtInfo[], person: WalletPerson): number => {
