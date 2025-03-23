@@ -7,8 +7,10 @@ export type Bill = {
   amount: number;
   dueDate: string;
   status: BillStatus;
-  id?: string; // Add optional id property to Bill type
-  type?: 'income' | 'expense'; // Add optional type property to Bill type
+  id?: string;
+  type?: 'income' | 'expense';
+  split_expense?: boolean;
+  responsibility?: string;
 };
 
 export type CategoryData = {
@@ -18,7 +20,7 @@ export type CategoryData = {
 };
 
 export type WalletData = {
-  owner: string; // Changed from 'id' to 'owner' to match usage
+  owner: string;
   balance: number;
   income: number;
   expenses: number;
@@ -32,7 +34,7 @@ export type DebtInfo = {
   amount: number;
   paid_amount?: number;
   owedTo: WalletPerson;
-  owed_to: WalletPerson; // Keep both properties for compatibility
+  owed_to: WalletPerson;
   owed_by: WalletPerson;
   description: string;
   is_paid: boolean;
@@ -56,7 +58,7 @@ export const buildWalletData = (
   categoryMap: {[key: string]: string}
 ): WalletData => {
   const wallet: WalletData = {
-    owner: responsibility, // Changed 'id' to 'owner' to match the type
+    owner: responsibility,
     balance: 0,
     income: 0,
     expenses: 0,
@@ -72,18 +74,14 @@ export const buildWalletData = (
   const categoryTotals: {[key: string]: number} = {};
   const billsMap: {[key: string]: Bill} = {};
   
-  // First pass: process regular transactions for this wallet, including direct transactions and split ones
   transactions.forEach(transaction => {
-    // Process both direct and split transactions for this wallet
     if (transaction.responsibility === responsibility) {
       if (transaction.type === 'income') {
-        // Only add to income/balance if it's received
         if (transaction.status === 'received') {
           wallet.income += parseFloat(String(transaction.amount));
           wallet.balance += parseFloat(transaction.amount);
         }
         
-        // Add pending incomes to bills if they're not received yet
         if (transaction.status === 'to_receive') {
           const billKey = `${transaction.description}-${transaction.due_date || 'no-date'}-${transaction.id}`;
           
@@ -93,12 +91,11 @@ export const buildWalletData = (
               amount: parseFloat(transaction.amount),
               dueDate: transaction.due_date || new Date().toISOString().split('T')[0],
               status: transaction.status || 'to_receive',
-              id: transaction.id // Now optional in the type
+              id: transaction.id
             };
           }
         }
       } else if (transaction.type === 'expense') {
-        // Only add to expenses/balance if it's paid
         if (transaction.status === 'paid') {
           wallet.expenses += parseFloat(transaction.amount);
           wallet.balance -= parseFloat(transaction.amount);
@@ -122,7 +119,7 @@ export const buildWalletData = (
               amount: parseFloat(transaction.amount),
               dueDate: transaction.due_date || new Date().toISOString().split('T')[0],
               status: transaction.status || 'pending',
-              id: transaction.id // Now optional in the type
+              id: transaction.id
             };
           }
         }
